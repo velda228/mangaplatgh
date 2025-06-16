@@ -4,7 +4,8 @@
             "name": "Asura Scans",
             "path": "asurascans",
             "version": "1.0.0",
-            "language": "en"
+            "language": "en",
+            "iconUrl": "https://raw.githubusercontent.com/velda228/Plugins/main/asurascans/icon.WEBP"
         }
     ]
 } 
