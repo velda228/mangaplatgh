@@ -3,6 +3,6 @@
     "version": "1.0.0",
     "language": "en",
     "baseUrl": "https://madarascans.com",
-    "iconUrl": "https://madarascans.com/favicon.ico",
+    "iconUrl": "https://raw.githubusercontent.com/velda228/mangaplatgh/main/extensions/madara/image.png",
     "parserUrl": "https://raw.githubusercontent.com/velda228/mangaplatgh/main/extensions/madara/parser.js"
 } 
