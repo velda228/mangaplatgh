@@ -1,6 +1,12 @@
 {
     "extensions": [
         {
+            "name": "Asura Scans",
+            "path": "asurascans",
+            "version": "1.0.0",
+            "language": "en"
+        },
+        {
             "name": "MangaDex",
             "path": "mangadex",
             "version": "1.0.0",
