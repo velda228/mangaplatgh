@@ -4,6 +4,7 @@
     "language": "en",
     "baseUrl": "https://asuracomic.net",
     "iconUrl": "https://raw.githubusercontent.com/velda228/Plugins/main/asurascans/icon.WEBP",
+    "parserUrl": "https://raw.githubusercontent.com/velda228/mangaplatgh/main/extensions/asurascans/parser.js",
     "mangaListUrl": "https://asuracomic.net/series?page={page}",
     "mangaListRegex": "<a href=\\\"series/([^\\\"]+)\\\">[\\s\\S]*?<img[^>]+src=\\\"([^\\\"]+)\\\"[^>]*>[\\s\\S]*?<span class=\\\\?\"block text-\\[13\\.3px\\] font-bold\\\\?\">([^<]+)</span>",
     "mangaUrlPrefix": "https://asuracomic.net",
