@@ -4,8 +4,13 @@
             "name": "Asura Scans",
             "path": "asurascans",
             "version": "1.0.0",
-            "language": "en",
-            "iconUrl": "https://raw.githubusercontent.com/velda228/Plugins/main/asurascans/icon.WEBP"
+            "language": "en"
+        },
+        {
+            "name": "Madara Scans",
+            "path": "madara",
+            "version": "1.0.0",
+            "language": "en"
         }
     ]
 } 
