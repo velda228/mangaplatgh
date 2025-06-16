@@ -1,0 +1,11 @@
+{
+    "name": "Asura Scans",
+    "version": "1.0.0",
+    "language": "en",
+    "baseUrl": "https://asuracomic.net",
+    "iconUrl": "icon.png",
+    "mangaListUrl": "https://asuracomic.net/?page={page}",
+    "mangaListRegex": "<a href=\\\"series/([^\\\"]+)\\\">[\\s\\S]*?<img[^>]+src=\\\"([^\\\"]+)\\\"[^>]*>[\\s\\S]*?<span class=\\\\?\"block text-\\[13\\.3px\\] font-bold\\\\?\">([^<]+)</span>",
+    "mangaUrlPrefix": "https://asuracomic.net",
+    "coverUrlPrefix": "https://gg.asuracomic.net"
+} 
