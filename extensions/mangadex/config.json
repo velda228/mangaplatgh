@@ -1,0 +1,7 @@
+{
+    "name": "MangaDex",
+    "version": "1.0.0",
+    "language": "ru",
+    "baseUrl": "https://mangadex.org",
+    "iconUrl": "https://mangadex.org/favicon.ico"
+} 
