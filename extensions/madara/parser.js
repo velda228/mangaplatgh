@@ -1,27 +1,19 @@
 function getMangaList(html, options) {
     // options: { page, filters }
     let result = [];
-    // Пример парсинга главной страницы Madara (список манги)
-    // Каждый элемент манги находится в <div class="page-item-detail">
-    const pattern = /<div class="page-item-detail[^\"]*">([\s\S]*?)<\/div>\s*<\/div>/g;
+    // Парсим все .bsx-блоки (карточки манги)
+    const bsxPattern = /<div class="bsx">([\s\S]*?)<\/div>\s*<\/div>/g;
     let match;
-    while ((match = pattern.exec(html)) !== null) {
+    while ((match = bsxPattern.exec(html)) !== null) {
         let block = match[1];
-
-        // Ссылка на мангу
-        let urlMatch = block.match(/<a href=\"([^\"]+)\"/);
+        // Ссылка и название
+        let urlMatch = block.match(/<a[^>]+href=\"([^\"]+)\"[^>]*title=\"([^\"]+)\"/);
         let url = urlMatch ? urlMatch[1] : "";
-
+        let title = urlMatch ? urlMatch[2].trim() : "";
         // Обложка
-        let coverMatch = block.match(/data-src=\"([^\"]+)\"/) || block.match(/src=\"([^\"]+)\"/);
+        let coverMatch = block.match(/<img[^>]+src=\"([^\"]+)\"/);
         let cover = coverMatch ? coverMatch[1] : "";
-
-        // Название
-        let titleMatch = block.match(/<h3 class=\"h5\">[\s\S]*?<a[^>]*>([^<]+)<\/a>/);
-        let title = titleMatch ? titleMatch[1].trim() : "";
-
         if (url && cover && title) {
-            // Делаем абсолютные ссылки
             if (!url.startsWith("http")) url = "https://madarascans.com" + url;
             if (!cover.startsWith("http")) cover = "https://madarascans.com" + cover;
             result.push({
@@ -31,10 +23,8 @@ function getMangaList(html, options) {
             });
         }
     }
-
     // Проверка наличия следующей страницы (по кнопке Next)
     let hasMore = /<a[^>]*class=\"next page-numbers\"[^>]*>Next<\/a>/.test(html);
-
     return {
         manga: result,
         has_more: hasMore
