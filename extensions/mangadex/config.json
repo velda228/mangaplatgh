@@ -3,5 +3,9 @@
     "version": "1.0.0",
     "language": "ru",
     "baseUrl": "https://mangadex.org",
-    "iconUrl": "https://mangadex.org/favicon.ico"
+    "iconUrl": "https://mangadex.org/favicon.ico",
+    "mangaListUrl": "https://mangadex.org/?page={page}",
+    "mangaListRegex": "<a href=\\\"title/([^\\\"]+)\\\">[\\s\\S]*?<img[^>]+src=\\\"([^\\\"]+)\\\"[^>]*>[\\s\\S]*?<div class=\\\"manga_title\\\">([^<]+)</div>",
+    "mangaUrlPrefix": "https://mangadex.org",
+    "coverUrlPrefix": "https://mangadex.org"
 } 
