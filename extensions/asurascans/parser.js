@@ -46,15 +46,12 @@ function getMangaList(html, options) {
 
 function parseMangaDetails(html) {
     try {
-        console.log("[DEBUG] parseMangaDetails: начало парсинга");
-        
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         
         // Находим основной контейнер
         const wrapper = doc.querySelector("div.grid.grid-cols-12");
         if (!wrapper) {
-            console.log("[ERROR] Не найден основной контейнер");
             return null;
         }
         
@@ -66,7 +63,7 @@ function parseMangaDetails(html) {
         
         // Автор
         let author = "";
-        const authorEl = wrapper.querySelector("div:has(h3:contains(Author)) > h3:nth-child(2)");
+        const authorEl = wrapper.querySelector("div:has(h3:eq(0):containsOwn(Author)) > h3:eq(1)");
         if (authorEl) {
             author = authorEl.textContent.trim();
             if (author === "_") author = "";
@@ -74,7 +71,7 @@ function parseMangaDetails(html) {
         
         // Художник
         let artist = "";
-        const artistEl = wrapper.querySelector("div:has(h3:contains(Artist)) > h3:nth-child(2)");
+        const artistEl = wrapper.querySelector("div:has(h3:eq(0):containsOwn(Artist)) > h3:eq(1)");
         if (artistEl) {
             artist = artistEl.textContent.trim();
             if (artist === "_") artist = "";
@@ -90,7 +87,7 @@ function parseMangaDetails(html) {
         
         // Статус
         let status = "unknown";
-        const statusEl = wrapper.querySelector("div:has(h3:contains(Status)) > h3:nth-child(2)");
+        const statusEl = wrapper.querySelector("div.flex:has(h3:eq(0):containsOwn(Status)) > h3:eq(1)");
         if (statusEl) {
             const statusText = statusEl.textContent.trim().toLowerCase();
             switch (statusText) {
