@@ -1,42 +1,48 @@
 // Asura Scans Parser
 
 function getMangaList(html, options) {
-    // options: { page, filters }
+    console.log("[DEBUG] getMangaList: options=", options);
+    console.log("[DEBUG] HTML length:", html.length);
+    
     let result = [];
-    let debug = [];
 
-    // 1. Основной паттерн для карточек манги
-    const mangaPattern = /<a[^>]+href="\/series\/[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
-    let match;
-    while ((match = mangaPattern.exec(html)) !== null) {
-        let block = match[1];
-        let url = (block.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
-        let title = (block.match(/<h3[^>]*>([^<]+)<\/h3>/) || [])[1] || "";
-        let cover = (block.match(/<img[^>]+src="([^"]+)"/) || [])[1] || "";
+    // Используем тот же селектор, что и в Aidoku
+    const mangaPattern = /<div class="grid[^"]*">([\s\S]*?)<\/div>/g;
+    let gridMatch = mangaPattern.exec(html);
+    
+    if (gridMatch) {
+        console.log("[DEBUG] Found grid container");
+        let gridHtml = gridMatch[1];
         
-        if (url && title && cover) {
-            if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
-            if (!cover.startsWith("http")) cover = "https://asuracomic.net" + cover;
-            result.push({ 
-                title: title.trim(),
-                url: url,
-                cover: cover
-            });
-        }
-    }
-
-    // 2. Альтернативный паттерн для карточек
-    if (result.length === 0) {
-        const altPattern = /<div[^>]+class="[^"]*manga-card[^"]*"[^>]*>([\s\S]*?)<\/div>/g;
-        while ((match = altPattern.exec(html)) !== null) {
-            let block = match[1];
-            let url = (block.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
-            let title = (block.match(/<h4[^>]*>([^<]+)<\/h4>/) || [])[1] || "";
-            let cover = (block.match(/<img[^>]+src="([^"]+)"/) || [])[1] || "";
+        // Ищем все ссылки внутри grid
+        const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+        let match;
+        
+        while ((match = linkPattern.exec(gridHtml)) !== null) {
+            let url = match[1];
+            let block = match[2];
+            
+            // Извлекаем обложку
+            let coverMatch = block.match(/<img[^>]+src="([^"]+)"[^>]*>/);
+            let cover = coverMatch ? coverMatch[1] : null;
+            
+            // Извлекаем название (используем тот же селектор: div.block > span.block)
+            let titleMatch = block.match(/<div[^>]*class="[^"]*block[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*block[^"]*"[^>]*>([^<]+)<\/span>/);
+            let title = titleMatch ? titleMatch[1] : null;
             
             if (url && title && cover) {
-                if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
-                if (!cover.startsWith("http")) cover = "https://asuracomic.net" + cover;
+                // Нормализуем URL
+                if (!url.startsWith("http")) {
+                    url = "https://asuracomic.net" + (url.startsWith("/") ? url : "/" + url);
+                }
+                
+                // Нормализуем URL обложки
+                if (!cover.startsWith("http")) {
+                    cover = "https://gg.asuracomic.net" + (cover.startsWith("/") ? cover : "/" + cover);
+                }
+                
+                console.log("[DEBUG] Found manga:", { title, url, cover });
+                
                 result.push({ 
                     title: title.trim(),
                     url: url,
@@ -46,14 +52,15 @@ function getMangaList(html, options) {
         }
     }
 
-    // Лог для отладки
-    if (typeof console !== 'undefined') {
-        console.log('[ASURA DEBUG] Найдено манги:', result.length);
-        if (result.length > 0) console.log('[ASURA DEBUG] Первая манга:', result[0]);
-    }
+    // Проверяем наличие кнопки Next (используя тот же селектор из Aidoku)
+    let hasMore = /<div[^>]*class="[^"]*flex[^"]*"[^>]*>[\s\S]*?<a[^>]*class="[^"]*flex[^"]*bg-themecolor[^"]*"[^>]*>[\s\S]*?Next[\s\S]*?<\/a>/.test(html);
 
-    // Проверка наличия следующей страницы
-    let hasMore = /<a[^>]*class="[^"]*next[^"]*"[^>]*>Next<\/a>/.test(html);
+    console.log("[DEBUG] Total manga found:", result.length);
+    if (result.length > 0) {
+        console.log("[DEBUG] First manga:", result[0]);
+    }
+    console.log("[DEBUG] Has more pages:", hasMore);
+
     return {
         manga: result,
         has_more: hasMore
@@ -61,20 +68,25 @@ function getMangaList(html, options) {
 }
 
 function parseMangaDetails(html) {
+    console.log("[DEBUG] parseMangaDetails: HTML length=", html.length);
+    
     let result = {};
     
     // Заголовок
     result.title = (html.match(/<h1[^>]*>([^<]+)<\/h1>/) || [])[1] || "";
+    console.log("[DEBUG] Title:", result.title);
     
     // Обложка
     result.cover = (html.match(/<img[^>]+alt="[^"]*cover[^"]*"[^>]+src="([^"]+)"/) || [])[1] || "";
     if (result.cover && !result.cover.startsWith("http")) {
-        result.cover = "https://asuracomic.net" + result.cover;
+        result.cover = "https://gg.asuracomic.net" + result.cover;
     }
+    console.log("[DEBUG] Cover:", result.cover);
     
     // Описание
     result.description = (html.match(/<div[^>]+class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || "";
     result.description = result.description.replace(/<[^>]+>/g, '').trim();
+    console.log("[DEBUG] Description length:", result.description.length);
     
     // Статус
     let statusMatch = html.match(/<div[^>]+class="[^"]*status[^"]*"[^>]*>([^<]+)<\/div>/);
@@ -88,10 +100,13 @@ function parseMangaDetails(html) {
     } else {
         result.status = 'unknown';
     }
+    console.log("[DEBUG] Status:", result.status);
     
     // Автор и художник
     result.author = (html.match(/<div[^>]+class="[^"]*author[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
     result.artist = (html.match(/<div[^>]+class="[^"]*artist[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
+    console.log("[DEBUG] Author:", result.author);
+    console.log("[DEBUG] Artist:", result.artist);
     
     // Жанры
     result.genres = [];
@@ -100,6 +115,7 @@ function parseMangaDetails(html) {
     while ((genreMatch = genrePattern.exec(html)) !== null) {
         result.genres.push(genreMatch[1].trim());
     }
+    console.log("[DEBUG] Genres:", result.genres);
     
     // Главы
     result.chapters = [];
@@ -125,11 +141,14 @@ function parseMangaDetails(html) {
             });
         }
     }
+    console.log("[DEBUG] Chapters found:", result.chapters.length);
     
     return result;
 }
 
 function parseChapterPages(html) {
+    console.log("[DEBUG] parseChapterPages: HTML length=", html.length);
+    
     let pages = [];
     
     // Ищем изображения в HTML
@@ -144,9 +163,11 @@ function parseChapterPages(html) {
             });
         }
     }
+    console.log("[DEBUG] Found images in HTML:", pages.length);
     
     // Если не нашли изображения в HTML, ищем в скриптах
     if (pages.length === 0) {
+        console.log("[DEBUG] Looking for images in scripts");
         const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/g;
         let scriptMatch;
         while ((scriptMatch = scriptPattern.exec(html)) !== null) {
@@ -164,15 +185,40 @@ function parseChapterPages(html) {
                                 });
                             }
                         });
+                        console.log("[DEBUG] Found images in script:", pages.length);
                         break;
                     } catch (e) {
-                        console.error('Failed to parse pages data:', e);
+                        console.error("[DEBUG] Failed to parse pages data:", e);
                     }
                 }
             }
         }
     }
     
+    // Если все еще нет страниц, ищем по специфичному паттерну AsuraScans
+    if (pages.length === 0) {
+        console.log("[DEBUG] Looking for AsuraScans specific pattern");
+        const asuraPattern = /"pages":\[(.*?)\]/;
+        let asuraMatch = html.match(asuraPattern);
+        if (asuraMatch) {
+            try {
+                let pagesData = JSON.parse('[' + asuraMatch[1] + ']');
+                pagesData.forEach((page, index) => {
+                    if (page.url) {
+                        pages.push({
+                            index: index + 1,
+                            url: page.url.replace(/\\\//g, '/')
+                        });
+                    }
+                });
+                console.log("[DEBUG] Found images in AsuraScans pattern:", pages.length);
+            } catch (e) {
+                console.error("[DEBUG] Failed to parse AsuraScans pages:", e);
+            }
+        }
+    }
+    
+    console.log("[DEBUG] Total pages found:", pages.length);
     return pages;
 }
 
