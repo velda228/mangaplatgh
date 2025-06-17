@@ -50,89 +50,126 @@ function parseMangaDetails(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     
+    // Находим основной контейнер
+    const wrapper = doc.querySelector("div.grid.grid-cols-12");
+    console.log("[DEBUG] wrapper найден:", !!wrapper);
+    
+    if (!wrapper) {
+        console.log("[ERROR] Не найден основной контейнер div.grid.grid-cols-12");
+        return null;
+    }
+    
     // Название
-    const title = doc.querySelector('span.text-xl.font-bold')?.textContent?.trim() || "";
+    const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
     console.log("[DEBUG] title:", title);
     
     // Обложка
-    const cover = doc.querySelector('img.rounded')?.getAttribute('src') || "";
+    const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
     console.log("[DEBUG] cover:", cover);
     
     // Описание
-    const description = doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() || "";
+    const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
     console.log("[DEBUG] description:", description?.substring(0, 50) + "...");
     
     // Автор
     let author = "";
-    const authorDiv = doc.querySelector('div:has(h3:contains(Author))');
+    const authorDiv = wrapper.querySelector("div:has(h3:contains(Author))");
     if (authorDiv) {
-        const h3s = authorDiv.querySelectorAll('h3');
-        if (h3s.length > 1) author = h3s[1].textContent.trim();
+        const h3s = authorDiv.querySelectorAll("h3");
+        if (h3s.length > 1) {
+            author = h3s[1].textContent.trim();
+            if (author === "_") author = "";
+        }
     }
     console.log("[DEBUG] author:", author);
     
     // Художник
     let artist = "";
-    const artistDiv = doc.querySelector('div:has(h3:contains(Artist))');
+    const artistDiv = wrapper.querySelector("div:has(h3:contains(Artist))");
     if (artistDiv) {
-        const h3s = artistDiv.querySelectorAll('h3');
-        if (h3s.length > 1) artist = h3s[1].textContent.trim();
+        const h3s = artistDiv.querySelectorAll("h3");
+        if (h3s.length > 1) {
+            artist = h3s[1].textContent.trim();
+            if (artist === "_") artist = "";
+        }
     }
     console.log("[DEBUG] artist:", artist);
     
     // Статус
     let status = "unknown";
-    const statusDiv = doc.querySelector('div:has(h3:contains(Status))');
+    const statusDiv = wrapper.querySelector("div.flex:has(h3:contains(Status))");
     if (statusDiv) {
-        const h3s = statusDiv.querySelectorAll('h3');
+        const h3s = statusDiv.querySelectorAll("h3");
         if (h3s.length > 1) {
             const statusText = h3s[1].textContent.trim().toLowerCase();
-            if (statusText.includes('ongoing')) status = 'ongoing';
-            else if (statusText.includes('completed')) status = 'completed';
-            else if (statusText.includes('hiatus')) status = 'hiatus';
-            else if (statusText.includes('dropped')) status = 'dropped';
+            switch (statusText) {
+                case "ongoing":
+                    status = "ongoing";
+                    break;
+                case "completed":
+                    status = "completed";
+                    break;
+                case "hiatus":
+                    status = "hiatus";
+                    break;
+                case "dropped":
+                    status = "dropped";
+                    break;
+                case "season end":
+                    status = "hiatus";
+                    break;
+            }
         }
     }
     console.log("[DEBUG] status:", status);
     
     // Жанры
-    const genres = Array.from(doc.querySelectorAll('div.flex.flex-row.flex-wrap.gap-3 button'))
-        .map(button => button.textContent.trim());
+    const genres = Array.from(
+        wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white")
+    ).map(button => button.textContent.trim());
     console.log("[DEBUG] genres:", genres);
     
     // Главы
     const chapters = [];
-    const chapterDivs = doc.querySelectorAll('div.pl-4.py-2.border.rounded-md.group.w-full');
-    let chapterIndex = 1;
+    const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
     
     for (const div of chapterDivs) {
-        const a = div.querySelector('a');
-        const h3s = a?.querySelectorAll('h3');
-        if (!h3s || h3s.length < 2) continue;
+        // Пропускаем заблокированные главы
+        if (div.querySelector("h3 > span > svg")) continue;
         
-        const rawTitle = h3s[0].textContent.trim();
-        const dateText = h3s[1].textContent.trim();
-        const chapterURL = a.getAttribute('href') || "";
+        const a = div.querySelector("a");
+        if (!a) continue;
         
-        // Извлекаем номер главы
-        const numberMatch = rawTitle.match(/([0-9]+(?:\.[0-9]+)?)/);
-        const number = numberMatch ? parseFloat(numberMatch[1]) : chapterIndex;
-        
+        const chapterURL = a.getAttribute("href") || "";
         if (!chapterURL) continue;
         
+        // Название главы
+        const titleSpan = div.querySelector("h3 > span");
+        const title = titleSpan ? titleSpan.textContent.trim() : "";
+        
+        // Номер главы
+        const chapterText = div.querySelector("h3.text-sm")?.textContent || "";
+        const chapterNumber = parseFloat(
+            chapterText
+                .replace(title, "")
+                .replace("Chapter", "")
+                .trim()
+        ) || -1;
+        
+        // Дата
+        const dateText = div.querySelector("h3:not(:has(*))")?.textContent?.trim() || "";
+        
         // Формируем полный URL
-        const fullChapterURL = chapterURL.startsWith('http') ? 
-            chapterURL : 
-            'https://asuracomic.net' + (chapterURL.startsWith('/') ? chapterURL : '/' + chapterURL);
+        const fullChapterURL = chapterURL.startsWith("http")
+            ? chapterURL
+            : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
         
         chapters.push({
-            title: rawTitle,
-            number: number,
+            title,
+            number: chapterNumber,
             url: fullChapterURL,
             date: dateText
         });
-        
-        chapterIndex++;
     }
     console.log("[DEBUG] chapters count:", chapters.length);
     
