@@ -1,31 +1,48 @@
-name: Build WASM
+name: Build all WASM extensions
 
 on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Emscripten
-        run: |
-          git clone https://github.com/emscripten-core/emsdk.git
-          cd emsdk
-          ./emsdk install latest
-          ./emsdk activate latest
-      - name: Init submodules
-        run: git submodule update --init --recursive
-      - name: Build WASM
-        run: |
-          source emsdk/emsdk_env.sh
-          cd wasm
-          ./build.sh
-      - name: Upload WASM artifact
-        uses: actions/upload-artifact@v4
+
+      - name: Install emscripten
+        uses: mymindstorm/setup-emsdk@v14
         with:
-          name: manga_parser.wasm
-          path: wasm/manga_parser.wasm 
+          version: 3.1.45
+
+      - name: Build all WASM extensions
+        run: |
+          for ext in extensions/*; do
+            if [ -d "$ext/src" ] && [ -f "$ext/src/build.sh" ]; then
+              echo "Building $ext"
+              cd "$ext/src"
+              chmod +x build.sh
+              ./build.sh
+              cd ..
+              # Переместить wasm в корень расширения
+              if [ -f manga_parser.wasm ]; then
+                mv manga_parser.wasm ../
+              fi
+              cd ../..
+            fi
+          done
+
+      # - name: Build mangadex WASM
+      #   run: |
+      #     cd wasm_mangadex
+      #     ./build.sh
+      #     cp manga_parser.wasm ../extensions/mangadex/manga_parser.wasm
+
+      - name: Commit and push WASM files
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+          git add extensions/*/manga_parser.wasm
+          git commit -m "Update all WASM parsers [ci skip]" || echo "No changes"
+          git push || echo "No changes to push" 
