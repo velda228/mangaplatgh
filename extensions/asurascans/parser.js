@@ -46,20 +46,37 @@ function getMangaList(html, options) {
 
 function parseMangaDetails(html) {
     try {
+        console.log("[DEBUG] parseMangaDetails: начало парсинга");
+        console.log("[DEBUG] HTML первые 500 символов:", html.substring(0, 500));
+        
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
+        
+        // Проверяем, что документ создан корректно
+        if (!doc || !doc.documentElement) {
+            console.log("[ERROR] Не удалось создать DOM документ");
+            return null;
+        }
         
         // Находим основной контейнер
         const wrapper = doc.querySelector("div.grid.grid-cols-12");
         if (!wrapper) {
+            console.log("[ERROR] Не найден основной контейнер");
+            console.log("[DEBUG] Доступные div элементы:");
+            const allDivs = doc.querySelectorAll("div");
+            Array.from(allDivs).slice(0, 5).forEach((div, i) => {
+                console.log(`[DEBUG] div ${i}:`, div.className);
+            });
             return null;
         }
         
         // Обложка
         const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
+        console.log("[DEBUG] cover:", cover);
         
         // Название
         const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
+        console.log("[DEBUG] title:", title);
         
         // Автор
         let author = "";
@@ -68,6 +85,7 @@ function parseMangaDetails(html) {
             author = authorEl.textContent.trim();
             if (author === "_") author = "";
         }
+        console.log("[DEBUG] author:", author);
         
         // Художник
         let artist = "";
@@ -76,14 +94,17 @@ function parseMangaDetails(html) {
             artist = artistEl.textContent.trim();
             if (artist === "_") artist = "";
         }
+        console.log("[DEBUG] artist:", artist);
         
         // Описание
         const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
+        console.log("[DEBUG] description:", description?.substring(0, 100) + "...");
         
         // Жанры
         const genres = Array.from(
             wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white")
         ).map(button => button.textContent.trim());
+        console.log("[DEBUG] genres:", genres);
         
         // Статус
         let status = "unknown";
@@ -98,10 +119,12 @@ function parseMangaDetails(html) {
                 case "season end": status = "hiatus"; break;
             }
         }
+        console.log("[DEBUG] status:", status);
         
         // Главы
         const chapters = [];
         const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
+        console.log("[DEBUG] Найдено глав:", chapterDivs.length);
         
         for (const div of chapterDivs) {
             // Пропускаем заблокированные главы
@@ -138,7 +161,7 @@ function parseMangaDetails(html) {
             });
         }
         
-        return {
+        const result = {
             title,
             cover,
             author,
@@ -149,8 +172,12 @@ function parseMangaDetails(html) {
             chapters
         };
         
+        console.log("[DEBUG] parseMangaDetails: завершение парсинга");
+        return result;
+        
     } catch (error) {
         console.log("[ERROR] Ошибка в parseMangaDetails:", error.message);
+        console.log("[ERROR] Стек ошибки:", error.stack);
         return null;
     }
 }
