@@ -134,8 +134,6 @@ function parseChapterPages(html) {
 }
 
 // Экспортируем функции парсера
-module.exports = {
-    getMangaList: parseMangaList,
-    parseMangaDetails,
-    parseChapterPages
-}; 
+globalThis.getMangaList = parseMangaList;
+globalThis.parseMangaDetails = parseMangaDetails;
+globalThis.parseChapterPages = parseChapterPages; 
