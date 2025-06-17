@@ -8,18 +8,5 @@
     "mangaListUrl": "https://asuracomic.net/series?page={page}",
     "mangaListRegex": "<a href=\\\"series/([^\\\"]+)\\\">[\\s\\S]*?<img[^>]+src=\\\"([^\\\"]+)\\\"[^>]*>[\\s\\S]*?<span class=\\\\?\"block text-\\[13\\.3px\\] font-bold\\\\?\">([^<]+)</span>",
     "mangaUrlPrefix": "https://asuracomic.net",
-    "coverUrlPrefix": "https://gg.asuracomic.net",
-    "selectors": {
-        "title": "span.text-xl.font-bold",
-        "cover": "img[alt=poster]",
-        "author": "div:has(h3:eq(0):containsOwn(Author)) > h3:eq(1)",
-        "artist": "div:has(h3:eq(0):containsOwn(Artist)) > h3:eq(1)",
-        "description": "span.font-medium.text-sm",
-        "genres": "div[class^=space] > div.flex > button.text-white",
-        "chapters": "div.scrollbar-thumb-themecolor > div.group",
-        "chapterTitle": "h3 > span",
-        "chapterUrl": "a",
-        "chapterNumber": "h3.text-sm",
-        "chapterDate": "h3:not(:has(*))"
-    }
+    "coverUrlPrefix": "https://gg.asuracomic.net"
 }
