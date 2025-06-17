@@ -66,4 +66,25 @@ struct MangaParser {
         }
     ]
 }
-``` 
+```
+
+# WASM-парсеры на C/C++
+
+В этом репозитории будет папка `wasm/` для парсеров на C/C++ с поддержкой сборки в WebAssembly (WASM).
+
+## Структура
+
+- `wasm/src/` — исходники парсеров, библиотеки Gumbo и cJSON
+- `wasm/build.sh` — скрипт сборки
+- `wasm/README.md` — инструкция по сборке и использованию
+- `.github/workflows/build.yml` — CI/CD для автоматической сборки WASM
+
+## Быстрый старт
+
+1. Установить Emscripten (см. wasm/README.md)
+2. Собрать парсер:
+   ```sh
+   cd wasm
+   ./build.sh
+   ```
+3. Использовать `manga_parser.wasm` и `manga_parser.js` в приложении 
