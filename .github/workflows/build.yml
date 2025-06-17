@@ -17,7 +17,6 @@ jobs:
           cd emsdk
           ./emsdk install latest
           ./emsdk activate latest
-          echo "source $PWD/emsdk_env.sh" >> $GITHUB_ENV
       - name: Build WASM
         run: |
           source emsdk/emsdk_env.sh
@@ -27,6 +26,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wasm
-          path: wasm/
-
-
+          path: wasm/ 
