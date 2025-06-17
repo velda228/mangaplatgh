@@ -5,6 +5,14 @@
 #include "gumbo.h"
 #include "cJSON.h"
 
+// Объявления экспортируемых функций
+EMSCRIPTEN_KEEPALIVE
+const char* get_manga_list(const char* html, const char* filters_json);
+EMSCRIPTEN_KEEPALIVE
+const char* get_manga_details(const char* html);
+EMSCRIPTEN_KEEPALIVE
+const char* get_chapter_pages(const char* html);
+
 #define BASE_URL "https://asuracomic.net"
 
 // Вспомогательные функции для работы с HTML
