@@ -27,5 +27,5 @@ jobs:
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wasm
-          path: wasm/ 
+          name: manga_parser.wasm
+          path: wasm/manga_parser.wasm 
