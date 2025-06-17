@@ -46,81 +46,91 @@ function getMangaList(html, options) {
 
 function parseMangaDetails(html) {
     console.log("[DEBUG] parseMangaDetails: HTML length=", html.length);
-    
-    let result = {};
-    
-    // Заголовок
-    result.title = (html.match(/<h1[^>]*>([^<]+)<\/h1>/) || [])[1] || "";
-    console.log("[DEBUG] Title:", result.title);
-    
-    // Обложка
-    result.cover = (html.match(/<img[^>]+alt="[^"]*cover[^"]*"[^>]+src="([^"]+)"/) || [])[1] || "";
-    if (result.cover && !result.cover.startsWith("http")) {
-        result.cover = "https://gg.asuracomic.net" + result.cover;
-    }
-    console.log("[DEBUG] Cover:", result.cover);
-    
-    // Описание
-    result.description = (html.match(/<div[^>]+class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || "";
-    result.description = result.description.replace(/<[^>]+>/g, '').trim();
-    console.log("[DEBUG] Description length:", result.description.length);
-    
-    // Статус
-    let statusMatch = html.match(/<div[^>]+class="[^"]*status[^"]*"[^>]*>([^<]+)<\/div>/);
-    if (statusMatch) {
-        let status = statusMatch[1].toLowerCase();
-        if (status.includes('ongoing')) result.status = 'ongoing';
-        else if (status.includes('completed')) result.status = 'completed';
-        else if (status.includes('hiatus')) result.status = 'hiatus';
-        else if (status.includes('dropped')) result.status = 'dropped';
-        else result.status = 'unknown';
-    } else {
-        result.status = 'unknown';
-    }
-    console.log("[DEBUG] Status:", result.status);
-    
-    // Автор и художник
-    result.author = (html.match(/<div[^>]+class="[^"]*author[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
-    result.artist = (html.match(/<div[^>]+class="[^"]*artist[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
-    console.log("[DEBUG] Author:", result.author);
-    console.log("[DEBUG] Artist:", result.artist);
-    
-    // Жанры
-    result.genres = [];
-    const genrePattern = /<a[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/g;
-    let genreMatch;
-    while ((genreMatch = genrePattern.exec(html)) !== null) {
-        result.genres.push(genreMatch[1].trim());
-    }
-    console.log("[DEBUG] Genres:", result.genres);
-    
-    // Главы
-    result.chapters = [];
-    const chapterPattern = /<a[^>]+href="\/chapter\/[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
-    let chapterMatch;
-    while ((chapterMatch = chapterPattern.exec(html)) !== null) {
-        let chapterBlock = chapterMatch[1];
-        let url = (chapterBlock.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
-        let title = chapterBlock.replace(/<[^>]+>/g, '').trim();
+
+    // Извлекаем основную информацию
+    const titleMatch = /<h1[^>]*>([^<]+)<\/h1>/i.exec(html);
+    const title = titleMatch ? titleMatch[1].trim() : "";
+
+    const coverMatch = /<div[^>]*class="[^"]*thumb[^"]*"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/i.exec(html);
+    const cover = coverMatch ? coverMatch[1] : "";
+
+    const descriptionMatch = /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
+    const description = descriptionMatch ? descriptionMatch[1].replace(/<[^>]+>/g, '').trim() : "";
+
+    // Извлекаем автора и статус
+    let author = "Unknown";
+    let artist = null;
+    let status = "Unknown";
+
+    const infoPattern = /<div[^>]*class="[^"]*fmed[^"]*"[^>]*>([^<]+)<\/div>\s*<div[^>]*class="[^"]*fmed[^"]*"[^>]*>([^<]+)<\/div>/g;
+    let infoMatch;
+    while ((infoMatch = infoPattern.exec(html)) !== null) {
+        const label = infoMatch[1].toLowerCase();
+        const value = infoMatch[2].trim();
         
-        if (url && title) {
-            if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
-            
-            // Извлекаем номер главы
-            let numberMatch = title.match(/Chapter\s+(\d+(\.\d+)?)/i) || url.match(/chapter[/-](\d+(\.\d+)?)/i);
-            let number = numberMatch ? parseFloat(numberMatch[1]) : result.chapters.length + 1;
-            
-            result.chapters.push({
-                id: url.split('/').pop(),
-                title: title,
-                number: number,
-                url: url
-            });
+        if (label.includes("author")) {
+            author = value;
+        } else if (label.includes("artist")) {
+            artist = value;
+        } else if (label.includes("status")) {
+            status = value;
         }
     }
-    console.log("[DEBUG] Chapters found:", result.chapters.length);
+
+    // Извлекаем главы
+    const chapters = [];
+    const chapterPattern = /<li[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<span[^>]*class="[^"]*chapternum[^"]*"[^>]*>([^<]+)<\/span>[\s\S]*?<\/a>/g;
+    const numberPattern = /([0-9]+(?:\.[0-9]+)?)/;
     
-    return result;
+    let chapterMatch;
+    let index = 1;
+    while ((chapterMatch = chapterPattern.exec(html)) !== null) {
+        const url = chapterMatch[1];
+        const title = chapterMatch[2].trim();
+        
+        // Извлекаем номер главы
+        const numberMatch = numberPattern.exec(title);
+        const number = numberMatch ? parseFloat(numberMatch[1]) : index;
+        
+        if (url && title) {
+            chapters.push({
+                url: url.startsWith("http") ? url : "https://asuracomic.net" + url,
+                title: title,
+                number: number
+            });
+        }
+        index++;
+    }
+
+    // Извлекаем жанры
+    const genres = [];
+    const genrePattern = /<a[^>]*class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/g;
+    let genreMatch;
+    while ((genreMatch = genrePattern.exec(html)) !== null) {
+        genres.push(genreMatch[1].trim());
+    }
+
+    console.log("[DEBUG] Parsed manga details:", {
+        title,
+        cover,
+        author,
+        artist,
+        status,
+        description: description.substring(0, 100) + "...",
+        chaptersCount: chapters.length,
+        genresCount: genres.length
+    });
+
+    return {
+        title,
+        cover: cover.startsWith("http") ? cover : "https://gg.asuracomic.net" + cover,
+        author,
+        artist,
+        description,
+        status,
+        genres,
+        chapters
+    };
 }
 
 function parseChapterPages(html) {
