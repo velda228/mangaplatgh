@@ -50,8 +50,142 @@ function getMangaList(html, options) {
 }
 
 function parseMangaDetails(html) {
-    console.log('[DEBUG] html:', html.substring(0, 1000));
-    return { title: 'test', cover: '', author: 'test', artist: '', description: 'test', status: 'ongoing', genres: ['test'], chapters: [] };
+    try {
+        console.log("[DEBUG] parseMangaDetails: начало парсинга");
+        console.log("[DEBUG] HTML первые 500 символов:", html.substring(0, 500));
+        
+        // Используем нативный DOMParser
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Проверяем, что документ создан корректно
+        if (!doc || !doc.documentElement) {
+            console.log("[ERROR] Не удалось создать DOM документ");
+            return null;
+        }
+        
+        // Находим основной контейнер
+        const wrapper = doc.querySelector("div.grid.grid-cols-12");
+        if (!wrapper) {
+            console.log("[ERROR] Не найден основной контейнер");
+            console.log("[DEBUG] Доступные div элементы:");
+            const allDivs = doc.querySelectorAll("div");
+            Array.from(allDivs).slice(0, 5).forEach((div, i) => {
+                console.log(`[DEBUG] div ${i}:`, div.className);
+            });
+            return null;
+        }
+        
+        // Обложка
+        const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
+        console.log("[DEBUG] cover:", cover);
+        
+        // Название
+        const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
+        console.log("[DEBUG] title:", title);
+        
+        // Автор
+        let author = "";
+        const authorEl = wrapper.querySelector("div:has(h3:eq(0):containsOwn(Author)) > h3:eq(1)");
+        if (authorEl) {
+            author = authorEl.textContent.trim();
+            if (author === "_") author = "";
+        }
+        console.log("[DEBUG] author:", author);
+        
+        // Художник
+        let artist = "";
+        const artistEl = wrapper.querySelector("div:has(h3:eq(0):containsOwn(Artist)) > h3:eq(1)");
+        if (artistEl) {
+            artist = artistEl.textContent.trim();
+            if (artist === "_") artist = "";
+        }
+        console.log("[DEBUG] artist:", artist);
+        
+        // Описание
+        const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
+        console.log("[DEBUG] description:", description?.substring(0, 100) + "...");
+        
+        // Жанры
+        const genres = Array.from(
+            wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white")
+        ).map(button => button.textContent.trim());
+        console.log("[DEBUG] genres:", genres);
+        
+        // Статус
+        let status = "unknown";
+        const statusEl = wrapper.querySelector("div.flex:has(h3:eq(0):containsOwn(Status)) > h3:eq(1)");
+        if (statusEl) {
+            const statusText = statusEl.textContent.trim().toLowerCase();
+            switch (statusText) {
+                case "ongoing": status = "ongoing"; break;
+                case "completed": status = "completed"; break;
+                case "hiatus": status = "hiatus"; break;
+                case "dropped": status = "dropped"; break;
+                case "season end": status = "hiatus"; break;
+            }
+        }
+        console.log("[DEBUG] status:", status);
+        
+        // Главы
+        const chapters = [];
+        const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
+        console.log("[DEBUG] Найдено глав:", chapterDivs.length);
+        
+        for (const div of chapterDivs) {
+            // Пропускаем заблокированные главы
+            if (div.querySelector("h3 > span > svg")) continue;
+            
+            const a = div.querySelector("a");
+            if (!a) continue;
+            
+            const chapterURL = a.getAttribute("href") || "";
+            if (!chapterURL) continue;
+            
+            const titleSpan = div.querySelector("h3 > span");
+            const title = titleSpan ? titleSpan.textContent.trim() : "";
+            
+            const chapterText = div.querySelector("h3.text-sm")?.textContent || "";
+            const chapterNumber = parseFloat(
+                chapterText
+                    .replace(title, "")
+                    .replace("Chapter", "")
+                    .trim()
+            ) || -1;
+            
+            const dateText = div.querySelector("h3:not(:has(*))")?.textContent?.trim() || "";
+            
+            const fullChapterURL = chapterURL.startsWith("http")
+                ? chapterURL
+                : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
+            
+            chapters.push({
+                title,
+                number: chapterNumber,
+                url: fullChapterURL,
+                date: dateText
+            });
+        }
+        
+        const result = {
+            title,
+            cover,
+            author,
+            artist,
+            description,
+            status,
+            genres,
+            chapters
+        };
+        
+        console.log("[DEBUG] parseMangaDetails: завершение парсинга");
+        return result;
+        
+    } catch (error) {
+        console.log("[ERROR] Ошибка в parseMangaDetails:", error.message);
+        console.log("[ERROR] Стек ошибки:", error.stack);
+        return null;
+    }
 }
 
 function parseChapterPages(html) {
