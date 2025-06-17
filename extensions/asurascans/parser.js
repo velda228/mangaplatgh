@@ -45,147 +45,192 @@ function getMangaList(html, options) {
 }
 
 function parseMangaDetails(html) {
-    console.log("[DEBUG] parseMangaDetails: начало парсинга");
-    
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    // Находим основной контейнер
-    const wrapper = doc.querySelector("div.grid.grid-cols-12");
-    console.log("[DEBUG] wrapper найден:", !!wrapper);
-    
-    if (!wrapper) {
-        console.log("[ERROR] Не найден основной контейнер div.grid.grid-cols-12");
-        return null;
-    }
-    
-    // Название
-    const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
-    console.log("[DEBUG] title:", title);
-    
-    // Обложка
-    const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
-    console.log("[DEBUG] cover:", cover);
-    
-    // Описание
-    const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
-    console.log("[DEBUG] description:", description?.substring(0, 50) + "...");
-    
-    // Автор
-    let author = "";
-    const authorDiv = wrapper.querySelector("div:has(h3:contains(Author))");
-    if (authorDiv) {
-        const h3s = authorDiv.querySelectorAll("h3");
-        if (h3s.length > 1) {
-            author = h3s[1].textContent.trim();
-            if (author === "_") author = "";
+    try {
+        console.log("[DEBUG] parseMangaDetails: начало парсинга");
+        console.log("[DEBUG] HTML первые 100 символов:", html.substring(0, 100));
+        
+        // Создаем DOMParser и проверяем его
+        if (typeof DOMParser === 'undefined') {
+            console.log("[ERROR] DOMParser не определен");
+            return null;
         }
-    }
-    console.log("[DEBUG] author:", author);
-    
-    // Художник
-    let artist = "";
-    const artistDiv = wrapper.querySelector("div:has(h3:contains(Artist))");
-    if (artistDiv) {
-        const h3s = artistDiv.querySelectorAll("h3");
-        if (h3s.length > 1) {
-            artist = h3s[1].textContent.trim();
-            if (artist === "_") artist = "";
+        
+        const parser = new DOMParser();
+        console.log("[DEBUG] DOMParser создан");
+        
+        // Парсим HTML
+        const doc = parser.parseFromString(html, 'text/html');
+        console.log("[DEBUG] HTML распарсен, documentElement:", doc.documentElement ? "существует" : "отсутствует");
+        
+        // Проверяем, что документ создан корректно
+        if (!doc || !doc.documentElement) {
+            console.log("[ERROR] Не удалось создать DOM документ");
+            return null;
         }
-    }
-    console.log("[DEBUG] artist:", artist);
-    
-    // Статус
-    let status = "unknown";
-    const statusDiv = wrapper.querySelector("div.flex:has(h3:contains(Status))");
-    if (statusDiv) {
-        const h3s = statusDiv.querySelectorAll("h3");
-        if (h3s.length > 1) {
-            const statusText = h3s[1].textContent.trim().toLowerCase();
-            switch (statusText) {
-                case "ongoing":
-                    status = "ongoing";
-                    break;
-                case "completed":
-                    status = "completed";
-                    break;
-                case "hiatus":
-                    status = "hiatus";
-                    break;
-                case "dropped":
-                    status = "dropped";
-                    break;
-                case "season end":
-                    status = "hiatus";
-                    break;
+        
+        // Находим основной контейнер
+        console.log("[DEBUG] Ищем основной контейнер");
+        const wrapper = doc.querySelector("div.grid.grid-cols-12");
+        console.log("[DEBUG] wrapper найден:", !!wrapper);
+        
+        if (!wrapper) {
+            console.log("[DEBUG] Пробуем найти любой div в документе");
+            const allDivs = doc.querySelectorAll("div");
+            console.log("[DEBUG] Найдено div элементов:", allDivs.length);
+            console.log("[DEBUG] Классы первых 3 div (если есть):");
+            Array.from(allDivs).slice(0, 3).forEach((div, i) => {
+                console.log(`[DEBUG] div ${i}:`, div.className);
+            });
+            
+            // Пробуем альтернативный селектор
+            console.log("[DEBUG] Пробуем альтернативный селектор");
+            const altWrapper = doc.querySelector("div[class*='grid'][class*='grid-cols']");
+            if (altWrapper) {
+                console.log("[DEBUG] Найден альтернативный wrapper:", altWrapper.className);
+                wrapper = altWrapper;
+            } else {
+                console.log("[ERROR] Не найден основной контейнер div.grid.grid-cols-12");
+                return null;
             }
         }
-    }
-    console.log("[DEBUG] status:", status);
-    
-    // Жанры
-    const genres = Array.from(
-        wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white")
-    ).map(button => button.textContent.trim());
-    console.log("[DEBUG] genres:", genres);
-    
-    // Главы
-    const chapters = [];
-    const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
-    
-    for (const div of chapterDivs) {
-        // Пропускаем заблокированные главы
-        if (div.querySelector("h3 > span > svg")) continue;
         
-        const a = div.querySelector("a");
-        if (!a) continue;
+        // Название
+        console.log("[DEBUG] Ищем название");
+        const titleEl = wrapper.querySelector("span.text-xl.font-bold");
+        console.log("[DEBUG] Элемент названия найден:", !!titleEl);
+        const title = titleEl?.textContent?.trim() || "";
+        console.log("[DEBUG] title:", title);
         
-        const chapterURL = a.getAttribute("href") || "";
-        if (!chapterURL) continue;
+        // Обложка
+        console.log("[DEBUG] Ищем обложку");
+        const coverEl = wrapper.querySelector("img[alt=poster]") || wrapper.querySelector("img.rounded");
+        console.log("[DEBUG] Элемент обложки найден:", !!coverEl);
+        const cover = coverEl?.getAttribute("src") || "";
+        console.log("[DEBUG] cover:", cover);
         
-        // Название главы
-        const titleSpan = div.querySelector("h3 > span");
-        const title = titleSpan ? titleSpan.textContent.trim() : "";
+        // Описание
+        console.log("[DEBUG] Ищем описание");
+        const descEl = wrapper.querySelector("span.font-medium.text-sm") || 
+                      wrapper.querySelector("span.font-medium.text-sm.text-[#A2A2A2]");
+        console.log("[DEBUG] Элемент описания найден:", !!descEl);
+        const description = descEl?.textContent?.trim() || "";
+        console.log("[DEBUG] description:", description?.substring(0, 50) + "...");
         
-        // Номер главы
-        const chapterText = div.querySelector("h3.text-sm")?.textContent || "";
-        const chapterNumber = parseFloat(
-            chapterText
-                .replace(title, "")
-                .replace("Chapter", "")
-                .trim()
-        ) || -1;
+        // Автор
+        console.log("[DEBUG] Ищем автора");
+        let author = "";
+        const authorDiv = wrapper.querySelector("div:has(h3:contains(Author))") || 
+                         wrapper.querySelector("div.flex:has(h3:contains(Author))");
+        if (authorDiv) {
+            const h3s = authorDiv.querySelectorAll("h3");
+            if (h3s.length > 1) {
+                author = h3s[1].textContent.trim();
+                if (author === "_") author = "";
+            }
+        }
+        console.log("[DEBUG] author:", author);
         
-        // Дата
-        const dateText = div.querySelector("h3:not(:has(*))")?.textContent?.trim() || "";
+        // Художник
+        console.log("[DEBUG] Ищем художника");
+        let artist = "";
+        const artistDiv = wrapper.querySelector("div:has(h3:contains(Artist))") || 
+                         wrapper.querySelector("div.flex:has(h3:contains(Artist))");
+        if (artistDiv) {
+            const h3s = artistDiv.querySelectorAll("h3");
+            if (h3s.length > 1) {
+                artist = h3s[1].textContent.trim();
+                if (artist === "_") artist = "";
+            }
+        }
+        console.log("[DEBUG] artist:", artist);
         
-        // Формируем полный URL
-        const fullChapterURL = chapterURL.startsWith("http")
-            ? chapterURL
-            : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
+        // Статус
+        console.log("[DEBUG] Ищем статус");
+        let status = "unknown";
+        const statusDiv = wrapper.querySelector("div.flex:has(h3:contains(Status))");
+        if (statusDiv) {
+            const h3s = statusDiv.querySelectorAll("h3");
+            if (h3s.length > 1) {
+                const statusText = h3s[1].textContent.trim().toLowerCase();
+                switch (statusText) {
+                    case "ongoing": status = "ongoing"; break;
+                    case "completed": status = "completed"; break;
+                    case "hiatus": status = "hiatus"; break;
+                    case "dropped": status = "dropped"; break;
+                    case "season end": status = "hiatus"; break;
+                }
+            }
+        }
+        console.log("[DEBUG] status:", status);
         
-        chapters.push({
+        // Жанры
+        console.log("[DEBUG] Ищем жанры");
+        const genreElements = wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white") ||
+                            wrapper.querySelectorAll("div.flex.flex-row.flex-wrap.gap-3 button");
+        console.log("[DEBUG] Найдено элементов жанров:", genreElements.length);
+        const genres = Array.from(genreElements).map(button => button.textContent.trim());
+        console.log("[DEBUG] genres:", genres);
+        
+        // Главы
+        console.log("[DEBUG] Ищем главы");
+        const chapters = [];
+        const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group") ||
+                           doc.querySelectorAll("div.pl-4.py-2.border.rounded-md.group.w-full");
+        console.log("[DEBUG] Найдено элементов глав:", chapterDivs.length);
+        
+        for (const div of chapterDivs) {
+            if (div.querySelector("h3 > span > svg")) continue;
+            
+            const a = div.querySelector("a");
+            if (!a) continue;
+            
+            const chapterURL = a.getAttribute("href") || "";
+            if (!chapterURL) continue;
+            
+            const titleSpan = div.querySelector("h3 > span");
+            const title = titleSpan ? titleSpan.textContent.trim() : "";
+            
+            const chapterText = div.querySelector("h3.text-sm")?.textContent || "";
+            const chapterNumber = parseFloat(
+                chapterText
+                    .replace(title, "")
+                    .replace("Chapter", "")
+                    .trim()
+            ) || -1;
+            
+            const dateText = div.querySelector("h3:not(:has(*))")?.textContent?.trim() || "";
+            
+            const fullChapterURL = chapterURL.startsWith("http")
+                ? chapterURL
+                : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
+            
+            chapters.push({
+                title,
+                number: chapterNumber,
+                url: fullChapterURL,
+                date: dateText
+            });
+        }
+        console.log("[DEBUG] chapters count:", chapters.length);
+        
+        const result = {
             title,
-            number: chapterNumber,
-            url: fullChapterURL,
-            date: dateText
-        });
+            cover,
+            author,
+            artist,
+            description,
+            status,
+            genres,
+            chapters
+        };
+        
+        console.log("[DEBUG] parseMangaDetails: завершение парсинга");
+        return result;
+    } catch (error) {
+        console.log("[ERROR] Ошибка в parseMangaDetails:", error.message);
+        console.log("[ERROR] Стек ошибки:", error.stack);
+        return null;
     }
-    console.log("[DEBUG] chapters count:", chapters.length);
-    
-    const result = {
-        title,
-        cover,
-        author,
-        artist,
-        description,
-        status,
-        genres,
-        chapters
-    };
-    
-    console.log("[DEBUG] parseMangaDetails: завершение парсинга");
-    return result;
 }
 
 function parseChapterPages(html) {
