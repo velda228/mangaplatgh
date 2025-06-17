@@ -1,5 +1,10 @@
 // Asura Scans Parser
 
+// Экспортируем функции глобально
+globalThis.getMangaList = getMangaList;
+globalThis.parseMangaDetails = parseMangaDetails;
+globalThis.parseChapterPages = parseChapterPages;
+
 function getMangaList(html, options) {
     // options: { page, filters }
     // filters: { title, genres: [], status, type, sort }
@@ -49,6 +54,7 @@ function parseMangaDetails(html) {
         console.log("[DEBUG] parseMangaDetails: начало парсинга");
         console.log("[DEBUG] HTML первые 500 символов:", html.substring(0, 500));
         
+        // Используем нативный DOMParser
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         
@@ -256,9 +262,4 @@ function parseChapterPages(html) {
     
     console.log("[DEBUG] Total pages found:", pages.length);
     return pages;
-}
-
-// Экспортируем функции
-globalThis.getMangaList = getMangaList;
-globalThis.parseMangaDetails = parseMangaDetails;
-globalThis.parseChapterPages = parseChapterPages; 
+} 
