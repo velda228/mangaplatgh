@@ -17,6 +17,8 @@ jobs:
           cd emsdk
           ./emsdk install latest
           ./emsdk activate latest
+      - name: Init submodules
+        run: git submodule update --init --recursive
       - name: Build WASM
         run: |
           source emsdk/emsdk_env.sh
