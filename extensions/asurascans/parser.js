@@ -47,69 +47,139 @@ function getMangaList(html, options) {
 function parseMangaDetails(html) {
     console.log("[DEBUG] parseMangaDetails: HTML length=", html.length);
 
-    // Извлекаем основную информацию
-    const titleMatch = /<h1[^>]*>([^<]+)<\/h1>/i.exec(html);
-    const title = titleMatch ? titleMatch[1].trim() : "";
-
-    const coverMatch = /<div[^>]*class="[^"]*thumb[^"]*"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>/i.exec(html);
-    const cover = coverMatch ? coverMatch[1] : "";
-
-    const descriptionMatch = /<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(html);
-    const description = descriptionMatch ? descriptionMatch[1].replace(/<[^>]+>/g, '').trim() : "";
-
-    // Извлекаем автора и статус
-    let author = "Unknown";
-    let artist = null;
-    let status = "Unknown";
-
-    const infoPattern = /<div[^>]*class="[^"]*fmed[^"]*"[^>]*>([^<]+)<\/div>\s*<div[^>]*class="[^"]*fmed[^"]*"[^>]*>([^<]+)<\/div>/g;
-    let infoMatch;
-    while ((infoMatch = infoPattern.exec(html)) !== null) {
-        const label = infoMatch[1].toLowerCase();
-        const value = infoMatch[2].trim();
-        
-        if (label.includes("author")) {
-            author = value;
-        } else if (label.includes("artist")) {
-            artist = value;
-        } else if (label.includes("status")) {
-            status = value;
-        }
-    }
-
-    // Извлекаем главы
-    const chapters = [];
-    const chapterPattern = /<li[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<span[^>]*class="[^"]*chapternum[^"]*"[^>]*>([^<]+)<\/span>[\s\S]*?<\/a>/g;
-    const numberPattern = /([0-9]+(?:\.[0-9]+)?)/;
+    // Создаем DOM-парсер
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
     
-    let chapterMatch;
-    let index = 1;
-    while ((chapterMatch = chapterPattern.exec(html)) !== null) {
-        const url = chapterMatch[1];
-        const title = chapterMatch[2].trim();
-        
-        // Извлекаем номер главы
-        const numberMatch = numberPattern.exec(title);
-        const number = numberMatch ? parseFloat(numberMatch[1]) : index;
-        
-        if (url && title) {
-            chapters.push({
-                url: url.startsWith("http") ? url : "https://asuracomic.net" + url,
-                title: title,
-                number: number
-            });
+    // Название
+    const title = doc.querySelector('span.text-xl.font-bold')?.textContent?.trim() || "";
+    
+    // Обложка
+    const cover = doc.querySelector('img.rounded')?.getAttribute('src') || "";
+    
+    // Описание
+    const description = doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() ||
+        doc.querySelector('h3:contains(Synopsis) + span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() ||
+        doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]:last-child')?.textContent?.trim() ||
+        doc.querySelector('h3:contains(Synopsis) + span')?.textContent?.trim() ||
+        doc.querySelector('span.font-medium.text-sm')?.textContent?.trim() || "";
+    
+    // Автор
+    let author = "";
+    const authorLabel = doc.querySelector('h3:contains(Author)');
+    if (authorLabel && authorLabel.nextElementSibling) {
+        author = authorLabel.nextElementSibling.textContent.trim();
+    }
+    
+    // Художник
+    let artist = null;
+    const artistLabel = doc.querySelector('h3:contains(Artist)');
+    if (artistLabel && artistLabel.nextElementSibling) {
+        artist = artistLabel.nextElementSibling.textContent.trim();
+    }
+    
+    // Статус
+    let status = "unknown";
+    const statusDivs = doc.querySelectorAll('div.bg-[#343434]');
+    for (const div of statusDivs) {
+        const h3s = div.querySelectorAll('h3');
+        if (h3s.length >= 2) {
+            const label = h3s[0].textContent.trim().toLowerCase();
+            const value = h3s[1].textContent.trim().toLowerCase();
+            if (label.includes('status')) {
+                if (value.includes('ongoing')) status = 'ongoing';
+                else if (value.includes('completed')) status = 'completed';
+                else if (value.includes('hiatus')) status = 'hiatus';
+                else if (value.includes('cancelled')) status = 'cancelled';
+                else if (value.includes('dropped')) status = 'dropped';
+                else if (value.includes('season end')) status = 'season_end';
+                else if (value.includes('coming soon')) status = 'coming_soon';
+                break;
+            }
         }
-        index++;
     }
-
-    // Извлекаем жанры
-    const genres = [];
-    const genrePattern = /<a[^>]*class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/g;
-    let genreMatch;
-    while ((genreMatch = genrePattern.exec(html)) !== null) {
-        genres.push(genreMatch[1].trim());
+    
+    // Fallback для статуса: ищем по всему тексту
+    if (status === 'unknown') {
+        const allText = doc.body.textContent.toLowerCase();
+        if (allText.includes('status ongoing')) status = 'ongoing';
+        else if (allText.includes('status completed')) status = 'completed';
+        else if (allText.includes('status hiatus')) status = 'hiatus';
+        else if (allText.includes('status cancelled')) status = 'cancelled';
+        else if (allText.includes('status dropped')) status = 'dropped';
+        else if (allText.includes('status season end')) status = 'season_end';
+        else if (allText.includes('status coming soon')) status = 'coming_soon';
     }
-
+    
+    // Количество подписчиков
+    let favoriteCount = null;
+    const followedByElements = doc.querySelectorAll('p.text-[#A2A2A2].text-[13px].text-center');
+    for (const element of followedByElements) {
+        const text = element.textContent;
+        if (text.includes('Followed by')) {
+            const match = text.match(/Followed by\s*(\d+)\s*people/i);
+            if (match) {
+                favoriteCount = parseInt(match[1]);
+                break;
+            }
+        }
+    }
+    
+    // Жанры
+    const genres = Array.from(doc.querySelectorAll('div.flex.flex-row.flex-wrap.gap-3 button'))
+        .map(button => button.textContent.trim());
+    
+    // Рейтинг
+    const ratingText = doc.querySelector('span.ml-1.text-xs')?.textContent || "0";
+    const rating = parseFloat(ratingText.replace(',', '.')) || 0;
+    
+    // Количество голосов
+    let ratingCount = null;
+    const ratingMatch = html.match(/"rating"\s*:\s*([0-9.]+)\s*,\s*"rating_count"\s*:\s*(\d+)/);
+    if (ratingMatch && Math.abs(parseFloat(ratingMatch[1]) - rating) < 0.001) {
+        ratingCount = parseInt(ratingMatch[2]);
+    }
+    
+    // Главы
+    const chapters = [];
+    const chapterDivs = doc.querySelectorAll('div.pl-4.py-2.border.rounded-md.group.w-full');
+    const numberRegex = /([0-9]+(?:\.[0-9]+)?)/;
+    let chapterIndex = 1;
+    
+    for (const div of chapterDivs) {
+        const a = div.querySelector('a');
+        const h3s = a?.querySelectorAll('h3');
+        if (!h3s || h3s.length < 2) continue;
+        
+        let rawTitle = h3s[0].textContent.trim();
+        const dateText = h3s[1].textContent.trim();
+        const chapterURL = a.getAttribute('href') || "";
+        
+        // Очищаем название
+        rawTitle = rawTitle.replace(/Глава|Chapter/gi, '').trim();
+        
+        // Извлекаем номер и доп. текст
+        const numberMatch = rawTitle.match(numberRegex);
+        const numberString = numberMatch ? numberMatch[1] : String(chapterIndex);
+        const extraText = numberMatch ? 
+            rawTitle.slice(numberMatch.index + numberMatch[0].length).trim() : "";
+        
+        if (!chapterURL) continue;
+        
+        // Формируем полный URL
+        const fullChapterURL = chapterURL.startsWith('http') ? 
+            chapterURL : 
+            'https://asuracomic.net' + (chapterURL.startsWith('/') ? chapterURL : '/' + chapterURL);
+        
+        chapters.push({
+            url: fullChapterURL,
+            title: extraText || rawTitle,
+            number: parseFloat(numberString) || chapterIndex
+        });
+        
+        chapterIndex++;
+    }
+    
     console.log("[DEBUG] Parsed manga details:", {
         title,
         cover,
@@ -118,18 +188,24 @@ function parseMangaDetails(html) {
         status,
         description: description.substring(0, 100) + "...",
         chaptersCount: chapters.length,
-        genresCount: genres.length
+        genresCount: genres.length,
+        rating,
+        ratingCount,
+        favoriteCount
     });
-
+    
     return {
         title,
-        cover: cover.startsWith("http") ? cover : "https://gg.asuracomic.net" + cover,
+        cover,
         author,
         artist,
         description,
         status,
         genres,
-        chapters
+        chapters,
+        rating,
+        ratingCount,
+        favoriteCount
     };
 }
 
