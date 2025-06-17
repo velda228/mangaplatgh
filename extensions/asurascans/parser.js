@@ -52,109 +52,99 @@ function getMangaList(html, options) {
 function parseMangaDetails(html) {
     try {
         console.log("[DEBUG] parseMangaDetails: старт");
-        console.log("[DEBUG] typeof DOMParser:", typeof DOMParser);
-        if (typeof DOMParser === "undefined") {
-            console.log("[ERROR] DOMParser не определён в этом окружении!");
-            return null;
-        }
-        const parser = new DOMParser();
-        console.log("[DEBUG] parser создан:", !!parser);
-        const doc = parser.parseFromString(html, 'text/html');
-        console.log("[DEBUG] doc:", !!doc, doc && typeof doc.querySelector);
-        if (!doc || typeof doc.querySelector !== "function") {
-            console.log("[ERROR] doc или querySelector не определены!");
-            return null;
-        }
-        const wrapper = doc.querySelector("div.grid.grid-cols-12");
-        if (!wrapper) {
+        
+        // Находим основной блок с информацией
+        const wrapperMatch = html.match(/<div class="grid grid-cols-12">([\s\S]*?)<\/div>\s*<\/div>/);
+        if (!wrapperMatch) {
             console.log("[ERROR] Не найден wrapper");
             return null;
         }
+        const wrapper = wrapperMatch[1];
         console.log("[DEBUG] wrapper найден");
 
         // Обложка
-        const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
+        const coverMatch = wrapper.match(/<img[^>]+alt="poster"[^>]+src="([^"]+)"/);
+        const cover = coverMatch ? coverMatch[1] : "";
         console.log("[DEBUG] cover:", cover);
 
         // Название
-        const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
+        const titleMatch = wrapper.match(/<span class="text-xl font-bold">([^<]+)<\/span>/);
+        const title = titleMatch ? titleMatch[1].trim() : "";
         console.log("[DEBUG] title:", title);
 
         // Автор и художник
         let author = "";
         let artist = "";
-        const divs = wrapper.querySelectorAll("div.flex");
-        console.log("[DEBUG] divs.flex count:", divs.length);
-        divs.forEach((div, idx) => {
-            const h3s = div.querySelectorAll("h3");
-            if (h3s.length >= 2) {
-                const label = h3s[0].textContent.trim();
-                if (label === "Author") author = h3s[1].textContent.trim() === "_" ? "" : h3s[1].textContent.trim();
-                if (label === "Artist") artist = h3s[1].textContent.trim() === "_" ? "" : h3s[1].textContent.trim();
-            }
-        });
+        const authorMatch = wrapper.match(/<h3[^>]*>Author<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
+        const artistMatch = wrapper.match(/<h3[^>]*>Artist<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
+        
+        if (authorMatch) {
+            author = authorMatch[1].trim();
+            if (author === "_") author = "";
+        }
+        if (artistMatch) {
+            artist = artistMatch[1].trim();
+            if (artist === "_") artist = "";
+        }
         console.log("[DEBUG] author:", author);
         console.log("[DEBUG] artist:", artist);
 
         // Описание
-        const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
+        const descMatch = wrapper.match(/<span class="font-medium text-sm">([^<]+)<\/span>/);
+        const description = descMatch ? descMatch[1].trim() : "";
         console.log("[DEBUG] description:", description);
 
         // Жанры
-        const genres = Array.from(wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white"))
-            .map(btn => btn.textContent.trim());
+        const genres = [];
+        const genrePattern = /<button[^>]*class="[^"]*text-white[^"]*"[^>]*>([^<]+)<\/button>/g;
+        let genreMatch;
+        while ((genreMatch = genrePattern.exec(wrapper)) !== null) {
+            genres.push(genreMatch[1].trim());
+        }
         console.log("[DEBUG] genres:", genres);
 
         // Статус
         let status = "unknown";
-        divs.forEach(div => {
-            const h3s = div.querySelectorAll("h3");
-            if (h3s.length >= 2 && h3s[0].textContent.trim() === "Status") {
-                const statusText = h3s[1].textContent.trim();
-                switch (statusText) {
-                    case "Ongoing": status = "ongoing"; break;
-                    case "Hiatus": status = "hiatus"; break;
-                    case "Completed": status = "completed"; break;
-                    case "Dropped": status = "dropped"; break;
-                    case "Season End": status = "hiatus"; break;
-                }
+        const statusMatch = wrapper.match(/<h3[^>]*>Status<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
+        if (statusMatch) {
+            const statusText = statusMatch[1].trim();
+            switch (statusText) {
+                case "Ongoing": status = "ongoing"; break;
+                case "Hiatus": status = "hiatus"; break;
+                case "Completed": status = "completed"; break;
+                case "Dropped": status = "dropped"; break;
+                case "Season End": status = "hiatus"; break;
             }
-        });
+        }
         console.log("[DEBUG] status:", status);
 
         // Главы
         const chapters = [];
-        const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
-        console.log("[DEBUG] chapterDivs count:", chapterDivs.length);
-        chapterDivs.forEach((div, idx) => {
-            if (div.querySelector("h3 > span > svg")) return;
-            const a = div.querySelector("a");
-            if (!a) return;
-            const chapterURL = a.getAttribute("href") || "";
-            const titleSpan = div.querySelector("h3 > span");
-            const chapterTitle = titleSpan ? titleSpan.textContent.trim() : "";
-            const chapterText = div.querySelector("h3.text-sm")?.textContent || "";
-            const chapterNumber = parseFloat(
-                chapterText.replace(chapterTitle, "").replace("Chapter", "").trim()
-            ) || -1;
-            let dateText = "";
-            const h3s = div.querySelectorAll("h3");
-            h3s.forEach(h3 => {
-                if (!h3.querySelector("*")) {
-                    dateText = h3.textContent.trim();
-                }
-            });
-            const fullChapterURL = chapterURL.startsWith("http")
-                ? chapterURL
-                : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
-            chapters.push({
-                title: chapterTitle,
-                number: chapterNumber,
-                url: fullChapterURL,
-                date: dateText
-            });
-            console.log(`[DEBUG] chapter[${idx}]:`, {title: chapterTitle, number: chapterNumber, url: fullChapterURL, date: dateText});
-        });
+        const chapterPattern = /<div class="group">([\s\S]*?)<\/div>\s*<\/div>/g;
+        let chapterMatch;
+        while ((chapterMatch = chapterPattern.exec(html)) !== null) {
+            const chapterBlock = chapterMatch[1];
+            if (chapterBlock.includes('<svg')) continue; // Пропускаем блоки с SVG
+
+            const urlMatch = chapterBlock.match(/<a[^>]+href="([^"]+)"/);
+            const titleMatch = chapterBlock.match(/<h3[^>]*>\s*<span[^>]*>([^<]+)<\/span>/);
+            const numberMatch = chapterBlock.match(/<h3[^>]*>Chapter\s*([0-9.]+)/);
+            const dateMatch = chapterBlock.match(/<h3[^>]*>([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})<\/h3>/);
+
+            if (urlMatch) {
+                const chapterURL = urlMatch[1];
+                const fullChapterURL = chapterURL.startsWith("http")
+                    ? chapterURL
+                    : "https://asuracomic.net" + (chapterURL.startsWith("/") ? chapterURL : "/" + chapterURL);
+
+                chapters.push({
+                    title: titleMatch ? titleMatch[1].trim() : "",
+                    number: numberMatch ? parseFloat(numberMatch[1]) : -1,
+                    url: fullChapterURL,
+                    date: dateMatch ? dateMatch[1] : ""
+                });
+            }
+        }
 
         const result = {
             title,
