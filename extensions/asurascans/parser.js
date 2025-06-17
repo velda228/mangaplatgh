@@ -51,22 +51,30 @@ function getMangaList(html, options) {
 
 function parseMangaDetails(html) {
     try {
+        console.log("[DEBUG] parseMangaDetails: старт");
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const wrapper = doc.querySelector("div.grid.grid-cols-12");
-        if (!wrapper) return null;
+        if (!wrapper) {
+            console.log("[ERROR] Не найден wrapper");
+            return null;
+        }
+        console.log("[DEBUG] wrapper найден");
 
         // Обложка
         const cover = wrapper.querySelector("img[alt=poster]")?.getAttribute("src") || "";
+        console.log("[DEBUG] cover:", cover);
 
         // Название
         const title = wrapper.querySelector("span.text-xl.font-bold")?.textContent?.trim() || "";
+        console.log("[DEBUG] title:", title);
 
-        // Автор и художник (ищем вручную)
+        // Автор и художник
         let author = "";
         let artist = "";
         const divs = wrapper.querySelectorAll("div.flex");
-        divs.forEach(div => {
+        console.log("[DEBUG] divs.flex count:", divs.length);
+        divs.forEach((div, idx) => {
             const h3s = div.querySelectorAll("h3");
             if (h3s.length >= 2) {
                 const label = h3s[0].textContent.trim();
@@ -74,13 +82,17 @@ function parseMangaDetails(html) {
                 if (label === "Artist") artist = h3s[1].textContent.trim() === "_" ? "" : h3s[1].textContent.trim();
             }
         });
+        console.log("[DEBUG] author:", author);
+        console.log("[DEBUG] artist:", artist);
 
         // Описание
         const description = wrapper.querySelector("span.font-medium.text-sm")?.textContent?.trim() || "";
+        console.log("[DEBUG] description:", description);
 
         // Жанры
         const genres = Array.from(wrapper.querySelectorAll("div[class^=space] > div.flex > button.text-white"))
             .map(btn => btn.textContent.trim());
+        console.log("[DEBUG] genres:", genres);
 
         // Статус
         let status = "unknown";
@@ -97,12 +109,14 @@ function parseMangaDetails(html) {
                 }
             }
         });
+        console.log("[DEBUG] status:", status);
 
         // Главы
         const chapters = [];
         const chapterDivs = doc.querySelectorAll("div.scrollbar-thumb-themecolor > div.group");
-        chapterDivs.forEach(div => {
-            if (div.querySelector("h3 > span > svg")) return; // Пропуск заблокированных
+        console.log("[DEBUG] chapterDivs count:", chapterDivs.length);
+        chapterDivs.forEach((div, idx) => {
+            if (div.querySelector("h3 > span > svg")) return;
             const a = div.querySelector("a");
             if (!a) return;
             const chapterURL = a.getAttribute("href") || "";
@@ -112,7 +126,6 @@ function parseMangaDetails(html) {
             const chapterNumber = parseFloat(
                 chapterText.replace(chapterTitle, "").replace("Chapter", "").trim()
             ) || -1;
-            // Дата (ищем h3 без вложенных элементов)
             let dateText = "";
             const h3s = div.querySelectorAll("h3");
             h3s.forEach(h3 => {
@@ -129,9 +142,10 @@ function parseMangaDetails(html) {
                 url: fullChapterURL,
                 date: dateText
             });
+            console.log(`[DEBUG] chapter[${idx}]:`, {title: chapterTitle, number: chapterNumber, url: fullChapterURL, date: dateText});
         });
 
-        return {
+        const result = {
             title,
             cover,
             author,
@@ -141,8 +155,11 @@ function parseMangaDetails(html) {
             genres,
             chapters
         };
+        console.log("[DEBUG] Итоговый результат:", JSON.stringify(result));
+        return result;
     } catch (error) {
-        console.log("[ERROR] Ошибка в parseMangaDetails:", error.message);
+        console.log("[ERROR] Ошибка в parseMangaDetails:", error && error.message ? error.message : error);
+        if (error && error.stack) console.log("[ERROR] Стек:", error.stack);
         return null;
     }
 }
