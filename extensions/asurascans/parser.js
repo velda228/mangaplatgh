@@ -25,7 +25,7 @@ function getMangaList(html, options) {
         result.push({
             title: title,
             url: fullMangaUrl,
-            cover: coverUrl
+            coverUrl: coverUrl
         });
     }
 
@@ -51,77 +51,36 @@ function parseMangaDetails(html) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     
-    // Название
+    // Основная информация
     const title = doc.querySelector('span.text-xl.font-bold')?.textContent?.trim() || "";
-    
-    // Обложка
     const cover = doc.querySelector('img.rounded')?.getAttribute('src') || "";
+    const description = doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() || "";
     
-    // Описание
-    const description = doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() ||
-        doc.querySelector('h3:contains(Synopsis) + span.font-medium.text-sm.text-[#A2A2A2]')?.textContent?.trim() ||
-        doc.querySelector('span.font-medium.text-sm.text-[#A2A2A2]:last-child')?.textContent?.trim() ||
-        doc.querySelector('h3:contains(Synopsis) + span')?.textContent?.trim() ||
-        doc.querySelector('span.font-medium.text-sm')?.textContent?.trim() || "";
-    
-    // Автор
+    // Автор и художник
     let author = "";
-    const authorLabel = doc.querySelector('h3:contains(Author)');
-    if (authorLabel && authorLabel.nextElementSibling) {
-        author = authorLabel.nextElementSibling.textContent.trim();
+    let artist = "";
+    const authorDiv = doc.querySelector('div:has(h3:contains(Author))');
+    const artistDiv = doc.querySelector('div:has(h3:contains(Artist))');
+    if (authorDiv) {
+        const h3s = authorDiv.querySelectorAll('h3');
+        if (h3s.length > 1) author = h3s[1].textContent.trim();
     }
-    
-    // Художник
-    let artist = null;
-    const artistLabel = doc.querySelector('h3:contains(Artist)');
-    if (artistLabel && artistLabel.nextElementSibling) {
-        artist = artistLabel.nextElementSibling.textContent.trim();
+    if (artistDiv) {
+        const h3s = artistDiv.querySelectorAll('h3');
+        if (h3s.length > 1) artist = h3s[1].textContent.trim();
     }
     
     // Статус
     let status = "unknown";
-    const statusDivs = doc.querySelectorAll('div.bg-[#343434]');
-    for (const div of statusDivs) {
-        const h3s = div.querySelectorAll('h3');
-        if (h3s.length >= 2) {
-            const label = h3s[0].textContent.trim().toLowerCase();
-            const value = h3s[1].textContent.trim().toLowerCase();
-            if (label.includes('status')) {
-                if (value.includes('ongoing')) status = 'ongoing';
-                else if (value.includes('completed')) status = 'completed';
-                else if (value.includes('hiatus')) status = 'hiatus';
-                else if (value.includes('cancelled')) status = 'cancelled';
-                else if (value.includes('dropped')) status = 'dropped';
-                else if (value.includes('season end')) status = 'season_end';
-                else if (value.includes('coming soon')) status = 'coming_soon';
-                break;
-            }
-        }
-    }
-    
-    // Fallback для статуса: ищем по всему тексту
-    if (status === 'unknown') {
-        const allText = doc.body.textContent.toLowerCase();
-        if (allText.includes('status ongoing')) status = 'ongoing';
-        else if (allText.includes('status completed')) status = 'completed';
-        else if (allText.includes('status hiatus')) status = 'hiatus';
-        else if (allText.includes('status cancelled')) status = 'cancelled';
-        else if (allText.includes('status dropped')) status = 'dropped';
-        else if (allText.includes('status season end')) status = 'season_end';
-        else if (allText.includes('status coming soon')) status = 'coming_soon';
-    }
-    
-    // Количество подписчиков
-    let favoriteCount = null;
-    const followedByElements = doc.querySelectorAll('p.text-[#A2A2A2].text-[13px].text-center');
-    for (const element of followedByElements) {
-        const text = element.textContent;
-        if (text.includes('Followed by')) {
-            const match = text.match(/Followed by\s*(\d+)\s*people/i);
-            if (match) {
-                favoriteCount = parseInt(match[1]);
-                break;
-            }
+    const statusDiv = doc.querySelector('div:has(h3:contains(Status))');
+    if (statusDiv) {
+        const h3s = statusDiv.querySelectorAll('h3');
+        if (h3s.length > 1) {
+            const statusText = h3s[1].textContent.trim().toLowerCase();
+            if (statusText.includes('ongoing')) status = 'ongoing';
+            else if (statusText.includes('completed')) status = 'completed';
+            else if (statusText.includes('hiatus')) status = 'hiatus';
+            else if (statusText.includes('dropped')) status = 'dropped';
         }
     }
     
@@ -129,21 +88,9 @@ function parseMangaDetails(html) {
     const genres = Array.from(doc.querySelectorAll('div.flex.flex-row.flex-wrap.gap-3 button'))
         .map(button => button.textContent.trim());
     
-    // Рейтинг
-    const ratingText = doc.querySelector('span.ml-1.text-xs')?.textContent || "0";
-    const rating = parseFloat(ratingText.replace(',', '.')) || 0;
-    
-    // Количество голосов
-    let ratingCount = null;
-    const ratingMatch = html.match(/"rating"\s*:\s*([0-9.]+)\s*,\s*"rating_count"\s*:\s*(\d+)/);
-    if (ratingMatch && Math.abs(parseFloat(ratingMatch[1]) - rating) < 0.001) {
-        ratingCount = parseInt(ratingMatch[2]);
-    }
-    
     // Главы
     const chapters = [];
     const chapterDivs = doc.querySelectorAll('div.pl-4.py-2.border.rounded-md.group.w-full');
-    const numberRegex = /([0-9]+(?:\.[0-9]+)?)/;
     let chapterIndex = 1;
     
     for (const div of chapterDivs) {
@@ -151,18 +98,13 @@ function parseMangaDetails(html) {
         const h3s = a?.querySelectorAll('h3');
         if (!h3s || h3s.length < 2) continue;
         
-        let rawTitle = h3s[0].textContent.trim();
+        const rawTitle = h3s[0].textContent.trim();
         const dateText = h3s[1].textContent.trim();
         const chapterURL = a.getAttribute('href') || "";
         
-        // Очищаем название
-        rawTitle = rawTitle.replace(/Глава|Chapter/gi, '').trim();
-        
-        // Извлекаем номер и доп. текст
-        const numberMatch = rawTitle.match(numberRegex);
-        const numberString = numberMatch ? numberMatch[1] : String(chapterIndex);
-        const extraText = numberMatch ? 
-            rawTitle.slice(numberMatch.index + numberMatch[0].length).trim() : "";
+        // Извлекаем номер главы
+        const numberMatch = rawTitle.match(/([0-9]+(?:\.[0-9]+)?)/);
+        const number = numberMatch ? parseFloat(numberMatch[1]) : chapterIndex;
         
         if (!chapterURL) continue;
         
@@ -172,9 +114,10 @@ function parseMangaDetails(html) {
             'https://asuracomic.net' + (chapterURL.startsWith('/') ? chapterURL : '/' + chapterURL);
         
         chapters.push({
+            title: rawTitle,
+            number: number,
             url: fullChapterURL,
-            title: extraText || rawTitle,
-            number: parseFloat(numberString) || chapterIndex
+            date: dateText
         });
         
         chapterIndex++;
@@ -188,10 +131,7 @@ function parseMangaDetails(html) {
         status,
         description: description.substring(0, 100) + "...",
         chaptersCount: chapters.length,
-        genresCount: genres.length,
-        rating,
-        ratingCount,
-        favoriteCount
+        genresCount: genres.length
     });
     
     return {
@@ -202,10 +142,7 @@ function parseMangaDetails(html) {
         description,
         status,
         genres,
-        chapters,
-        rating,
-        ratingCount,
-        favoriteCount
+        chapters
     };
 }
 
