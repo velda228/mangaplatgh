@@ -52,8 +52,19 @@ function getMangaList(html, options) {
 function parseMangaDetails(html) {
     try {
         console.log("[DEBUG] parseMangaDetails: старт");
+        console.log("[DEBUG] typeof DOMParser:", typeof DOMParser);
+        if (typeof DOMParser === "undefined") {
+            console.log("[ERROR] DOMParser не определён в этом окружении!");
+            return null;
+        }
         const parser = new DOMParser();
+        console.log("[DEBUG] parser создан:", !!parser);
         const doc = parser.parseFromString(html, 'text/html');
+        console.log("[DEBUG] doc:", !!doc, doc && typeof doc.querySelector);
+        if (!doc || typeof doc.querySelector !== "function") {
+            console.log("[ERROR] doc или querySelector не определены!");
+            return null;
+        }
         const wrapper = doc.querySelector("div.grid.grid-cols-12");
         if (!wrapper) {
             console.log("[ERROR] Не найден wrapper");
