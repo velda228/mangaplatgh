@@ -10,7 +10,7 @@
     "listings": [
         {
             "name": "All",
-            "path": "/manga/"
+            "path": "/series"
         }
     ]
 } 
