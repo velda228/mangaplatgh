@@ -1,64 +1,41 @@
 // Asura Scans Parser
 
 function getMangaList(html, options) {
-    console.log("[DEBUG] getMangaList: options=", options);
+    // options: { page, filters }
+    // filters: { title, genres: [], status, type, sort }
+    let page = options && options.page ? options.page : 1;
+    let filters = options && options.filters ? options.filters : {};
+
+    console.log("[DEBUG] getMangaList: page=", page, "filters=", filters);
     console.log("[DEBUG] HTML length:", html.length);
-    
+
+    // --- Парсинг HTML ---
+    const pattern = /<a href="series\/([^\"]+)">[\s\S]*?<img[^>]+src="([^\"]+)"[^>]*>[\s\S]*?<span class="block text-\[13\.3px\] font-bold">([^<]+)<\/span>/g;
     let result = [];
+    let match;
 
-    // Используем тот же селектор, что и в Aidoku
-    const mangaPattern = /<div class="grid[^"]*">([\s\S]*?)<\/div>/g;
-    let gridMatch = mangaPattern.exec(html);
-    
-    if (gridMatch) {
-        console.log("[DEBUG] Found grid container");
-        let gridHtml = gridMatch[1];
+    while ((match = pattern.exec(html)) !== null) {
+        let mangaUrl = "/series/" + match[1];
+        let fullMangaUrl = mangaUrl.startsWith("http") ? mangaUrl : "https://asuracomic.net" + mangaUrl;
+        let coverUrl = match[2].startsWith("/") ? "https://gg.asuracomic.net" + match[2] : match[2];
+        let title = match[3].trim();
+
+        console.log("[DEBUG] Found manga:", { title, url: fullMangaUrl, cover: coverUrl });
         
-        // Ищем все ссылки внутри grid
-        const linkPattern = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-        let match;
-        
-        while ((match = linkPattern.exec(gridHtml)) !== null) {
-            let url = match[1];
-            let block = match[2];
-            
-            // Извлекаем обложку
-            let coverMatch = block.match(/<img[^>]+src="([^"]+)"[^>]*>/);
-            let cover = coverMatch ? coverMatch[1] : null;
-            
-            // Извлекаем название (используем тот же селектор: div.block > span.block)
-            let titleMatch = block.match(/<div[^>]*class="[^"]*block[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*block[^"]*"[^>]*>([^<]+)<\/span>/);
-            let title = titleMatch ? titleMatch[1] : null;
-            
-            if (url && title && cover) {
-                // Нормализуем URL
-                if (!url.startsWith("http")) {
-                    url = "https://asuracomic.net" + (url.startsWith("/") ? url : "/" + url);
-                }
-                
-                // Нормализуем URL обложки
-                if (!cover.startsWith("http")) {
-                    cover = "https://gg.asuracomic.net" + (cover.startsWith("/") ? cover : "/" + cover);
-                }
-                
-                console.log("[DEBUG] Found manga:", { title, url, cover });
-                
-                result.push({ 
-                    title: title.trim(),
-                    url: url,
-                    cover: cover
-                });
-            }
-        }
+        result.push({
+            title: title,
+            url: fullMangaUrl,
+            cover: coverUrl
+        });
     }
-
-    // Проверяем наличие кнопки Next (используя тот же селектор из Aidoku)
-    let hasMore = /<div[^>]*class="[^"]*flex[^"]*"[^>]*>[\s\S]*?<a[^>]*class="[^"]*flex[^"]*bg-themecolor[^"]*"[^>]*>[\s\S]*?Next[\s\S]*?<\/a>/.test(html);
 
     console.log("[DEBUG] Total manga found:", result.length);
     if (result.length > 0) {
         console.log("[DEBUG] First manga:", result[0]);
     }
+
+    // Проверка наличия следующей страницы
+    let hasMore = /<a[^>]*class="flex bg-themecolor[^\"]*"[^>]*>Next<\/a>/.test(html);
     console.log("[DEBUG] Has more pages:", hasMore);
 
     return {
