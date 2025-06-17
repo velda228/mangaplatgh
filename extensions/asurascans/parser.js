@@ -1,146 +1,169 @@
 // Asura Scans Parser
 
-function createDocument(html) {
-    // Используем встроенный DOMParser если он есть
-    if (typeof DOMParser !== 'undefined') {
-        const parser = new DOMParser();
-        return parser.parseFromString(html, 'text/html');
-    }
-    
-    // Fallback для Node.js окружения
-    if (typeof require !== 'undefined') {
-        const jsdom = require('jsdom');
-        const { JSDOM } = jsdom;
-        const dom = new JSDOM(html);
-        return dom.window.document;
-    }
-    
-    throw new Error('No DOM parser available');
-}
+function getMangaList(html, options) {
+    // options: { page, filters }
+    let result = [];
+    let debug = [];
 
-function parseMangaList(html) {
-    const doc = createDocument(html);
-    const items = [];
-    
-    // Новая структура использует Next.js и имеет другие классы
-    const mangaCards = doc.querySelectorAll('a[href^="/series/"]');
-    mangaCards.forEach(card => {
-        const img = card.querySelector('img');
-        const title = card.querySelector('h3, h4, .title'); // Ищем заголовок в разных возможных элементах
+    // 1. Основной паттерн для карточек манги
+    const mangaPattern = /<a[^>]+href="\/series\/[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    let match;
+    while ((match = mangaPattern.exec(html)) !== null) {
+        let block = match[1];
+        let url = (block.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
+        let title = (block.match(/<h3[^>]*>([^<]+)<\/h3>/) || [])[1] || "";
+        let cover = (block.match(/<img[^>]+src="([^"]+)"/) || [])[1] || "";
         
-        if (img && title) {
-            const href = card.getAttribute('href');
-            items.push({
-                id: href.split('/').pop(),
-                title: title.textContent.trim(),
-                coverUrl: img.getAttribute('src'),
-                url: href
+        if (url && title && cover) {
+            if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
+            if (!cover.startsWith("http")) cover = "https://asuracomic.net" + cover;
+            result.push({ 
+                title: title.trim(),
+                url: url,
+                cover: cover
             });
         }
-    });
-    
-    return items;
+    }
+
+    // 2. Альтернативный паттерн для карточек
+    if (result.length === 0) {
+        const altPattern = /<div[^>]+class="[^"]*manga-card[^"]*"[^>]*>([\s\S]*?)<\/div>/g;
+        while ((match = altPattern.exec(html)) !== null) {
+            let block = match[1];
+            let url = (block.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
+            let title = (block.match(/<h4[^>]*>([^<]+)<\/h4>/) || [])[1] || "";
+            let cover = (block.match(/<img[^>]+src="([^"]+)"/) || [])[1] || "";
+            
+            if (url && title && cover) {
+                if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
+                if (!cover.startsWith("http")) cover = "https://asuracomic.net" + cover;
+                result.push({ 
+                    title: title.trim(),
+                    url: url,
+                    cover: cover
+                });
+            }
+        }
+    }
+
+    // Лог для отладки
+    if (typeof console !== 'undefined') {
+        console.log('[ASURA DEBUG] Найдено манги:', result.length);
+        if (result.length > 0) console.log('[ASURA DEBUG] Первая манга:', result[0]);
+    }
+
+    // Проверка наличия следующей страницы
+    let hasMore = /<a[^>]*class="[^"]*next[^"]*"[^>]*>Next<\/a>/.test(html);
+    return {
+        manga: result,
+        has_more: hasMore
+    };
 }
 
 function parseMangaDetails(html) {
-    const doc = createDocument(html);
+    let result = {};
     
-    // Обновленные селекторы для деталей манги
-    const title = doc.querySelector('h1')?.textContent.trim();
-    const cover = doc.querySelector('img[alt*="cover"]')?.getAttribute('src');
-    const description = doc.querySelector('[class*="description"]')?.textContent.trim();
+    // Заголовок
+    result.title = (html.match(/<h1[^>]*>([^<]+)<\/h1>/) || [])[1] || "";
     
-    // Парсинг статуса
-    let status = 'unknown';
-    const statusElement = doc.querySelector('[class*="status"]');
-    if (statusElement) {
-        const statusText = statusElement.textContent.toLowerCase();
-        if (statusText.includes('ongoing')) status = 'ongoing';
-        else if (statusText.includes('completed')) status = 'completed';
-        else if (statusText.includes('hiatus')) status = 'hiatus';
-        else if (statusText.includes('dropped')) status = 'dropped';
+    // Обложка
+    result.cover = (html.match(/<img[^>]+alt="[^"]*cover[^"]*"[^>]+src="([^"]+)"/) || [])[1] || "";
+    if (result.cover && !result.cover.startsWith("http")) {
+        result.cover = "https://asuracomic.net" + result.cover;
     }
     
-    // Парсинг автора и художника
-    let author = 'Unknown';
-    let artist = 'Unknown';
+    // Описание
+    result.description = (html.match(/<div[^>]+class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || "";
+    result.description = result.description.replace(/<[^>]+>/g, '').trim();
     
-    // Ищем метаданные в разных возможных местах
-    doc.querySelectorAll('[class*="metadata"] div, [class*="info"] div').forEach(el => {
-        const text = el.textContent.toLowerCase();
-        if (text.includes('author')) {
-            author = el.querySelector('span, a')?.textContent.trim() || 'Unknown';
-        }
-        if (text.includes('artist')) {
-            artist = el.querySelector('span, a')?.textContent.trim() || 'Unknown';
-        }
-    });
+    // Статус
+    let statusMatch = html.match(/<div[^>]+class="[^"]*status[^"]*"[^>]*>([^<]+)<\/div>/);
+    if (statusMatch) {
+        let status = statusMatch[1].toLowerCase();
+        if (status.includes('ongoing')) result.status = 'ongoing';
+        else if (status.includes('completed')) result.status = 'completed';
+        else if (status.includes('hiatus')) result.status = 'hiatus';
+        else if (status.includes('dropped')) result.status = 'dropped';
+        else result.status = 'unknown';
+    } else {
+        result.status = 'unknown';
+    }
     
-    // Парсинг жанров
-    const genres = [];
-    doc.querySelectorAll('[class*="genres"] a, [class*="tags"] a').forEach(genre => {
-        genres.push(genre.textContent.trim());
-    });
+    // Автор и художник
+    result.author = (html.match(/<div[^>]+class="[^"]*author[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
+    result.artist = (html.match(/<div[^>]+class="[^"]*artist[^"]*"[^>]*>([^<]+)<\/div>/) || [])[1] || "Unknown";
     
-    // Парсинг глав
-    const chapters = [];
-    doc.querySelectorAll('a[href*="/chapter/"]').forEach((chapter, index) => {
-        const title = chapter.textContent.trim();
-        const url = chapter.getAttribute('href');
+    // Жанры
+    result.genres = [];
+    const genrePattern = /<a[^>]+class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/g;
+    let genreMatch;
+    while ((genreMatch = genrePattern.exec(html)) !== null) {
+        result.genres.push(genreMatch[1].trim());
+    }
+    
+    // Главы
+    result.chapters = [];
+    const chapterPattern = /<a[^>]+href="\/chapter\/[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    let chapterMatch;
+    while ((chapterMatch = chapterPattern.exec(html)) !== null) {
+        let chapterBlock = chapterMatch[1];
+        let url = (chapterBlock.match(/<a[^>]+href="([^"]+)"/) || [])[1] || "";
+        let title = chapterBlock.replace(/<[^>]+>/g, '').trim();
         
-        if (title && url) {
-            // Извлекаем номер главы из заголовка или URL
-            const numberMatch = (title.match(/Chapter\s+(\d+(\.\d+)?)/i) || url.match(/chapter[/-](\d+(\.\d+)?)/i));
-            const number = numberMatch ? parseFloat(numberMatch[1]) : index + 1;
+        if (url && title) {
+            if (!url.startsWith("http")) url = "https://asuracomic.net" + url;
             
-            chapters.push({
+            // Извлекаем номер главы
+            let numberMatch = title.match(/Chapter\s+(\d+(\.\d+)?)/i) || url.match(/chapter[/-](\d+(\.\d+)?)/i);
+            let number = numberMatch ? parseFloat(numberMatch[1]) : result.chapters.length + 1;
+            
+            result.chapters.push({
                 id: url.split('/').pop(),
                 title: title,
                 number: number,
                 url: url
             });
         }
-    });
+    }
     
-    return {
-        title,
-        cover,
-        description,
-        status,
-        author,
-        artist,
-        genres,
-        chapters
-    };
+    return result;
 }
 
 function parseChapterPages(html) {
-    const doc = createDocument(html);
-    const pages = [];
+    let pages = [];
     
-    // Ищем изображения глав
-    doc.querySelectorAll('img[class*="chapter"]').forEach((img, index) => {
-        const url = img.getAttribute('src');
+    // Ищем изображения в HTML
+    const imgPattern = /<img[^>]+class="[^"]*chapter-image[^"]*"[^>]+src="([^"]+)"/g;
+    let imgMatch;
+    while ((imgMatch = imgPattern.exec(html)) !== null) {
+        let url = imgMatch[1];
         if (url) {
             pages.push({
-                index: index + 1,
+                index: pages.length + 1,
                 url: url
             });
         }
-    });
+    }
     
-    // Если не нашли изображения напрямую, ищем в скриптах
+    // Если не нашли изображения в HTML, ищем в скриптах
     if (pages.length === 0) {
-        const scripts = doc.querySelectorAll('script');
-        let pagesData = null;
-        
-        for (const script of scripts) {
-            const content = script.textContent;
-            if (content && content.includes('"pages":[')) {
-                const match = content.match(/"pages":\[(.*?)\]/);
-                if (match) {
+        const scriptPattern = /<script[^>]*>([\s\S]*?)<\/script>/g;
+        let scriptMatch;
+        while ((scriptMatch = scriptPattern.exec(html)) !== null) {
+            let scriptContent = scriptMatch[1];
+            if (scriptContent.includes('"pages":[')) {
+                let pagesMatch = scriptContent.match(/"pages":\[(.*?)\]/);
+                if (pagesMatch) {
                     try {
-                        pagesData = JSON.parse('[' + match[1] + ']');
+                        let pagesData = JSON.parse('[' + pagesMatch[1] + ']');
+                        pagesData.forEach((page, index) => {
+                            if (page.url) {
+                                pages.push({
+                                    index: index + 1,
+                                    url: page.url.replace(/\\\//g, '/')
+                                });
+                            }
+                        });
                         break;
                     } catch (e) {
                         console.error('Failed to parse pages data:', e);
@@ -148,23 +171,12 @@ function parseChapterPages(html) {
                 }
             }
         }
-        
-        if (pagesData) {
-            pagesData.forEach((page, index) => {
-                if (page.url) {
-                    pages.push({
-                        index: index + 1,
-                        url: page.url.replace(/\\\//g, '/')
-                    });
-                }
-            });
-        }
     }
     
     return pages;
 }
 
-// Экспортируем функции парсера
-globalThis.getMangaList = parseMangaList;
+// Экспортируем функции
+globalThis.getMangaList = getMangaList;
 globalThis.parseMangaDetails = parseMangaDetails;
 globalThis.parseChapterPages = parseChapterPages; 
