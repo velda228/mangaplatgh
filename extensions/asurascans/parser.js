@@ -1,5 +1,5 @@
 // AsuraScans Parser
-const BASE_URL = "https://asuracomic.net/";
+const BASE_URL = "https://asuracomic.net";
 
 // Helper functions
 function getMangaId(url) {
@@ -24,7 +24,6 @@ function getChapterUrl(chapterId, mangaId) {
 function getMangaList(page = 1) {
     const url = `${BASE_URL}/series?page=${page}`;
     
-    // В JavaScriptCore нет fetch, поэтому возвращаем URL для загрузки
     return JSON.stringify({
         url: url,
         manga: [],
@@ -35,7 +34,6 @@ function getMangaList(page = 1) {
 function getMangaDetails(mangaId) {
     const url = getMangaUrl(mangaId);
     
-    // В JavaScriptCore нет fetch, поэтому возвращаем URL для загрузки
     return JSON.stringify({
         url: url,
         id: mangaId,
@@ -51,46 +49,29 @@ function getMangaDetails(mangaId) {
 function getChapterList(mangaId) {
     const url = getMangaUrl(mangaId);
     
-    // В JavaScriptCore нет fetch, поэтому возвращаем URL для загрузки
     return JSON.stringify([]);
 }
 
 function getChapterPages(chapterId, mangaId) {
     const url = getChapterUrl(chapterId, mangaId);
     
-    // В JavaScriptCore нет fetch, поэтому возвращаем URL для загрузки
     return JSON.stringify([]);
 }
 
 // Функции для парсинга HTML (вызываются из Swift)
 function parseMangaList(html) {
     try {
-        console.log("Starting parseMangaList");
-        
         // Простой парсинг с помощью регулярных выражений
         const mangas = [];
         
-        // Проверяем, есть ли манга в HTML
-        if (!html.includes('series/')) {
-            console.log("No series links found in HTML");
-            return JSON.stringify({
-                manga: [],
-                hasMore: false
-            });
-        }
-        
-        // Паттерн для поиска манги - более гибкий
-        const pattern = /<a[^>]+href="[^"]*series\/([^"]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<span[^>]*>([^<]+)<\/span>/g;
+        // Паттерн для поиска манги
+        const pattern = /<a href="series\/([^"]+)">[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<span class="block text-\[13\.3px\] font-bold">([^<]+)<\/span>/g;
         let match;
-        let matchCount = 0;
         
         while ((match = pattern.exec(html)) !== null) {
-            matchCount++;
             const id = match[1];
             const cover = match[2].startsWith("http") ? match[2] : `https://gg.asuracomic.net${match[2]}`;
             const title = match[3].trim();
-            
-            console.log(`Found manga ${matchCount}: ${title} (${id})`);
             
             mangas.push({
                 id: id,
@@ -104,19 +85,13 @@ function parseMangaList(html) {
             });
         }
         
-        console.log(`Total manga found: ${mangas.length}`);
-        
         const hasMore = html.includes('class="flex bg-themecolor"') && html.includes('Next');
         
-        const result = {
+        return JSON.stringify({
             manga: mangas,
             hasMore: hasMore
-        };
-        
-        console.log("Returning result:", JSON.stringify(result));
-        return JSON.stringify(result);
+        });
     } catch (error) {
-        console.log("Error parsing manga list:", error);
         return JSON.stringify({
             manga: [],
             hasMore: false
@@ -176,7 +151,6 @@ function parseMangaDetails(html, mangaId) {
             status: status
         });
     } catch (error) {
-        console.log("Error parsing manga details:", error);
         return JSON.stringify(null);
     }
 }
@@ -220,7 +194,6 @@ function parseChapterList(html, mangaId) {
         
         return JSON.stringify(chapters);
     } catch (error) {
-        console.log("Error parsing chapter list:", error);
         return JSON.stringify([]);
     }
 }
@@ -241,7 +214,6 @@ function parseChapterPages(html) {
         
         return JSON.stringify(pages);
     } catch (error) {
-        console.log("Error parsing chapter pages:", error);
         return JSON.stringify([]);
     }
 }
