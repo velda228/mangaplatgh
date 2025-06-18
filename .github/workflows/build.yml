@@ -41,10 +41,10 @@ jobs:
       #     ./build.sh
       #     cp manga_parser.wasm ../extensions/mangadex/manga_parser.wasm
 
-      - name: Commit and push WASM files
+      - name: Commit WASM files
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
-          git add extensions/*/manga_parser.wasm
-          git commit -m "Update all WASM parsers [ci skip]" || echo "No changes"
-          git push || echo "No changes to push" 
+          git add extensions/*/asurascans_parser.wasm
+          git commit -m "Update WASM parser" || echo "No changes to commit"
+          git push
