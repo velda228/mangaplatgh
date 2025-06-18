@@ -8,6 +8,7 @@ function cleanHtml(html) {
     // Заменяем проблемные символы на правильные
     return html
         .replace(/&#39;/g, "'")  // HTML entity для апострофа
+        .replace(/&#x27;/g, "'")  // HTML entity для апострофа
         .replace(/&apos;/g, "'") // HTML entity для апострофа
         .replace(/&quot;/g, '"') // HTML entity для кавычек
         .replace(/&amp;/g, '&')  // HTML entity для амперсанда
