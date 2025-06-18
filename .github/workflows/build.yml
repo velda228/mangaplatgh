@@ -4,6 +4,8 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v2
         with:
@@ -47,4 +49,4 @@ jobs:
           git config --global user.name "GitHub Actions"
           git add extensions/*/asurascans_parser.wasm
           git commit -m "Update WASM parser" || echo "No changes to commit"
-          git push
+          git push origin HEAD:${{ github.ref }}
