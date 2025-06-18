@@ -5,7 +5,7 @@
 
 set -e
 
-# Пути к файлам
+# Путь к библиотекам относительно папки расширения
 WASM_SRC="../../wasm/src"
 PARSER_C="parser.c"
 OUTPUT_DIR="."
@@ -33,11 +33,12 @@ emcc -O3 \
   "$PARSER_C" \
   -o "$OUTPUT_DIR/$OUTPUT_NAME" \
   -s WASM=1 \
+  -s TOTAL_MEMORY=16MB \
+  -s INITIAL_MEMORY=16MB \
+  -s MAXIMUM_MEMORY=128MB \
+  -s ALLOW_MEMORY_GROWTH=1 \
   -s EXPORTED_FUNCTIONS='["_get_manga_list_asura","_get_manga_details_asura","_get_chapter_list_asura","_get_chapter_pages_asura","_cleanup_asura"]' \
   -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
-  -s ALLOW_MEMORY_GROWTH=1 \
-  -s INITIAL_MEMORY=65536 \
-  -s MAXIMUM_MEMORY=16777216 \
   -O2 \
   --no-entry
 
