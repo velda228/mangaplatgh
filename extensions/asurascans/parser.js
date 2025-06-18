@@ -20,65 +20,9 @@ function getChapterUrl(chapterId, mangaId) {
     return `${BASE_URL}/series/${mangaId}/${chapterId}`;
 }
 
-// CSS Selector helper functions
-function select(html, selector) {
-    // Простая реализация CSS селекторов
-    if (selector === "div.grid > a[href]") {
-        return selectGridLinks(html);
-    } else if (selector === "div.flex > a.flex.bg-themecolor:contains(Next)") {
-        return selectNextButton(html);
-    } else if (selector === "div.grid.grid-cols-12") {
-        return selectWrapper(html);
-    } else if (selector === "div.scrollbar-thumb-themecolor > div.group") {
-        return selectChapterGroups(html);
-    }
-    return [];
-}
-
-function selectGridLinks(html) {
-    const links = [];
-    const pattern = /<div[^>]*class="[^"]*grid[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<\/a>[\s\S]*?<\/div>/g;
-    let match;
-    
-    while ((match = pattern.exec(html)) !== null) {
-        const linkHtml = match[0];
-        const href = match[1];
-        
-        // Извлекаем img и span
-        const imgMatch = linkHtml.match(/<img[^>]+src="([^"]+)"[^>]*>/);
-        const spanMatch = linkHtml.match(/<span[^>]*class="[^"]*block[^"]*"[^>]*>([^<]+)<\/span>/);
-        
-        if (imgMatch && spanMatch) {
-            links.push({
-                href: href,
-                img: imgMatch[1],
-                title: spanMatch[1].trim()
-            });
-        }
-    }
-    
-    return links;
-}
-
-function selectNextButton(html) {
-    return html.includes('class="flex bg-themecolor"') && html.includes('Next') ? [1] : [];
-}
-
-function selectWrapper(html) {
-    const wrapperMatch = html.match(/<div[^>]*class="[^"]*grid[^"]*[^"]*grid-cols-12[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/);
-    return wrapperMatch ? [wrapperMatch[1]] : [];
-}
-
-function selectChapterGroups(html) {
-    const groups = [];
-    const pattern = /<div[^>]*class="[^"]*scrollbar-thumb-themecolor[^"]*"[^>]*>[\s\S]*?<div[^>]*class="[^"]*group[^"]*"[^>]*>([\s\S]*?)<\/div>/g;
-    let match;
-    
-    while ((match = pattern.exec(html)) !== null) {
-        groups.push(match[1]);
-    }
-    
-    return groups;
+// Простая функция для тестирования
+function testFunction() {
+    return "Hello from JavaScript!";
 }
 
 // Main functions
@@ -121,25 +65,24 @@ function getChapterPages(chapterId, mangaId) {
 
 // Функции для парсинга HTML (вызываются из Swift)
 function parseMangaList(html) {
+    console.log("parseMangaList called with HTML length:", html.length);
+    
     try {
         const mangas = [];
         
-        // Используем тот же селектор, что и в Rust коде
-        const nodes = select(html, "div.grid > a[href]");
+        // Простой парсинг для тестирования
+        const pattern = /<a href="series\/([^"]+)">[\s\S]*?<img[^>]+src="([^"]+)"[^>]*>[\s\S]*?<span[^>]*class="[^"]*block[^"]*"[^>]*>([^<]+)<\/span>/g;
+        let match;
         
-        for (const node of nodes) {
-            const rawUrl = node.href;
-            const id = getMangaId(rawUrl);
-            if (!id) continue;
-            
-            const url = getMangaUrl(id);
-            const cover = node.img.startsWith("http") ? node.img : `https://gg.asuracomic.net${node.img}`;
-            const title = node.title;
+        while ((match = pattern.exec(html)) !== null) {
+            const id = match[1];
+            const cover = match[2].startsWith("http") ? match[2] : `https://gg.asuracomic.net${match[2]}`;
+            const title = match[3].trim();
             
             mangas.push({
                 id: id,
                 title: title,
-                url: url,
+                url: getMangaUrl(id),
                 coverURL: cover,
                 author: null,
                 status: null,
@@ -148,14 +91,19 @@ function parseMangaList(html) {
             });
         }
         
-        // Проверяем наличие кнопки "Next"
-        const hasMore = select(html, "div.flex > a.flex.bg-themecolor:contains(Next)").length > 0;
+        console.log("Found", mangas.length, "manga");
         
-        return JSON.stringify({
+        const result = {
             manga: mangas,
-            hasMore: hasMore
-        });
+            hasMore: html.includes('class="flex bg-themecolor"') && html.includes('Next')
+        };
+        
+        const jsonResult = JSON.stringify(result);
+        console.log("Returning JSON:", jsonResult);
+        
+        return jsonResult;
     } catch (error) {
+        console.log("Error in parseMangaList:", error);
         return JSON.stringify({
             manga: [],
             hasMore: false
@@ -165,49 +113,31 @@ function parseMangaList(html) {
 
 function parseMangaDetails(html, mangaId) {
     try {
-        const wrapper = select(html, "div.grid.grid-cols-12");
-        if (wrapper.length === 0) return JSON.stringify(null);
-        
-        const wrapperHtml = wrapper[0];
-        
-        // Извлекаем данные используя те же селекторы, что и в Rust
-        const coverMatch = wrapperHtml.match(/<img[^>]+alt="poster"[^>]+src="([^"]+)"/);
+        const coverMatch = html.match(/<img[^>]+alt="poster"[^>]+src="([^"]+)"/);
         const cover = coverMatch ? coverMatch[1] : "";
         
-        const titleMatch = wrapperHtml.match(/<span[^>]*class="[^"]*text-xl[^"]*[^"]*font-bold[^"]*"[^>]*>([^<]+)<\/span>/);
+        const titleMatch = html.match(/<span[^>]*class="[^"]*text-xl[^"]*[^"]*font-bold[^"]*"[^>]*>([^<]+)<\/span>/);
         const title = titleMatch ? titleMatch[1].trim() : "";
         
-        // Author
-        const authorMatch = wrapperHtml.match(/<h3[^>]*>Author<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
+        const authorMatch = html.match(/<h3[^>]*>Author<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
         let author = "";
         if (authorMatch) {
             author = authorMatch[1].trim();
             if (author === "_") author = "";
         }
         
-        // Artist
-        const artistMatch = wrapperHtml.match(/<h3[^>]*>Artist<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
-        let artist = "";
-        if (artistMatch) {
-            artist = artistMatch[1].trim();
-            if (artist === "_") artist = "";
-        }
-        
-        // Description
-        const descMatch = wrapperHtml.match(/<span[^>]*class="[^"]*font-medium[^"]*[^"]*text-sm[^"]*"[^>]*>([^<]+)<\/span>/);
+        const descMatch = html.match(/<span[^>]*class="[^"]*font-medium[^"]*[^"]*text-sm[^"]*"[^>]*>([^<]+)<\/span>/);
         const description = descMatch ? descMatch[1].trim() : "";
         
-        // Categories/Tags
         const tags = [];
         const genrePattern = /<button[^>]*class="[^"]*text-white[^"]*"[^>]*>([^<]+)<\/button>/g;
         let genreMatch;
-        while ((genreMatch = genrePattern.exec(wrapperHtml)) !== null) {
+        while ((genreMatch = genrePattern.exec(html)) !== null) {
             tags.push(genreMatch[1].trim());
         }
         
-        // Status
         let status = "Unknown";
-        const statusMatch = wrapperHtml.match(/<h3[^>]*>Status<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
+        const statusMatch = html.match(/<h3[^>]*>Status<\/h3>\s*<h3[^>]*>([^<]+)<\/h3>/);
         if (statusMatch) {
             const statusText = statusMatch[1].trim();
             switch (statusText) {
@@ -226,7 +156,7 @@ function parseMangaDetails(html, mangaId) {
             url: getMangaUrl(mangaId),
             coverURL: cover,
             author: author,
-            artist: artist,
+            artist: "",
             description: description,
             tags: tags,
             status: status
@@ -240,34 +170,26 @@ function parseChapterList(html, mangaId) {
     try {
         const chapters = [];
         
-        // Используем тот же селектор, что и в Rust коде
-        const nodes = select(html, "div.scrollbar-thumb-themecolor > div.group");
+        const pattern = /<div class="group">[\s\S]*?<a[^>]+href="([^"]+)">[\s\S]*?<h3[^>]*>\s*<span[^>]*>([^<]+)<\/span>/g;
+        let match;
         
-        for (const nodeHtml of nodes) {
-            // Проверяем, что глава не заблокирована (нет SVG)
-            if (nodeHtml.includes('<svg')) continue;
+        while ((match = pattern.exec(html)) !== null) {
+            const rawUrl = match[1];
+            const title = match[2].trim();
             
-            // Извлекаем ссылку
-            const linkMatch = nodeHtml.match(/<a[^>]+href="([^"]+)"/);
-            if (!linkMatch) continue;
+            // Пропускаем заблокированные главы
+            if (html.includes('<svg') && html.indexOf('<svg') < html.indexOf(rawUrl)) {
+                continue;
+            }
             
-            const rawUrl = linkMatch[1];
             const chapterId = getChapterId(rawUrl);
             if (!chapterId) continue;
             
             const url = getChapterUrl(chapterId, mangaId);
             
-            // Извлекаем заголовок
-            const titleMatch = nodeHtml.match(/<h3[^>]*>\s*<span[^>]*>([^<]+)<\/span>/);
-            const title = titleMatch ? titleMatch[1].trim() : "";
-            
             // Извлекаем номер главы
-            const chapterMatch = nodeHtml.match(/<h3[^>]*class="[^"]*text-sm[^"]*"[^>]*>([^<]+)<\/h3>/);
-            let chapterNumber = -1;
-            if (chapterMatch) {
-                const chapterText = chapterMatch[1].replace(title, "").replace("Chapter", "").trim();
-                chapterNumber = parseFloat(chapterText) || -1;
-            }
+            const numberMatch = html.match(/Chapter\s*([0-9.]+)/);
+            const chapterNumber = numberMatch ? parseFloat(numberMatch[1]) : -1;
             
             chapters.push({
                 id: chapterId,
@@ -288,26 +210,16 @@ function parseChapterList(html, mangaId) {
 
 function parseChapterPages(html) {
     try {
-        // Remove script tags from hydration that can cut up the page list
+        // Remove script tags that might interfere with parsing
         html = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
         
         const pages = [];
+        const pageMatches = html.match(/https:\/\/gg\.asuracomic\.net\/storage\/media\/[^"]+/g);
         
-        // Find bounds of the page list (как в Rust коде)
-        const pageListStart = html.indexOf('"pages":[{"order":1,"url":"https://gg.asuracomic.net/storage/media');
-        if (pageListStart !== -1) {
-            const pageListEnd = html.indexOf('}]', pageListStart);
-            if (pageListEnd !== -1) {
-                const pageListText = html.substring(pageListStart, pageListEnd);
-                
-                // Ищем все URL страниц
-                const pageMatches = pageListText.match(/https:\/\/gg\.asuracomic\.net\/storage\/media\/[^"]+/g);
-                if (pageMatches) {
-                    pageMatches.forEach((pageUrl, index) => {
-                        pages.push(pageUrl);
-                    });
-                }
-            }
+        if (pageMatches) {
+            pageMatches.forEach((pageUrl, index) => {
+                pages.push(pageUrl);
+            });
         }
         
         return JSON.stringify(pages);
@@ -326,6 +238,7 @@ if (typeof module !== 'undefined' && module.exports) {
         parseMangaList,
         parseMangaDetails,
         parseChapterList,
-        parseChapterPages
+        parseChapterPages,
+        testFunction
     };
 } 
