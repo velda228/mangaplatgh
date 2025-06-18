@@ -1,6 +1,30 @@
 // Madara Scans Parser
 console.log("Madara parser loaded successfully");
 
+// Функция для очистки HTML от проблемных символов
+function cleanHtml(html) {
+    if (!html) return "";
+    
+    // Заменяем проблемные символы на правильные
+    return html
+        .replace(/&#39;/g, "'")  // HTML entity для апострофа
+        .replace(/&#x27;/g, "'") // hex entity для апострофа
+        .replace(/&apos;/g, "'") // HTML entity для апострофа
+        .replace(/&quot;/g, '"') // HTML entity для кавычек
+        .replace(/&amp;/g, '&')  // HTML entity для амперсанда
+        .replace(/&lt;/g, '<')   // HTML entity для <
+        .replace(/&gt;/g, '>')   // HTML entity для >
+        .replace(/&#8217;/g, "'") // Unicode для апострофа
+        .replace(/&#8216;/g, "'") // Unicode для апострофа
+        .replace(/&#8220;/g, '"') // Unicode для кавычек
+        .replace(/&#8221;/g, '"'); // Unicode для кавычек
+}
+
+function testFunction() {
+    console.log("testFunction called");
+    return "Hello from Madara JavaScript!";
+}
+
 // Madara Parser
 const BASE_URL = "https://madarascans.com";
 
@@ -61,287 +85,334 @@ function getChapterPages(chapterId, mangaId) {
     return JSON.stringify([]);
 }
 
-// Функция для очистки HTML от проблемных символов
-function cleanHtml(html) {
-    if (!html) return "";
-    
-    // Заменяем проблемные символы на правильные
-    return html
-        .replace(/&#39;/g, "'")  // HTML entity для апострофа
-        .replace(/&#x27;/g, "'") // hex entity для апострофа
-        .replace(/&apos;/g, "'") // HTML entity для апострофа
-        .replace(/&quot;/g, '"') // HTML entity для кавычек
-        .replace(/&amp;/g, '&')  // HTML entity для амперсанда
-        .replace(/&lt;/g, '<')   // HTML entity для <
-        .replace(/&gt;/g, '>')   // HTML entity для >
-        .replace(/&#8217;/g, "'") // Unicode для апострофа
-        .replace(/&#8216;/g, "'") // Unicode для апострофа
-        .replace(/&#8220;/g, '"') // Unicode для кавычек
-        .replace(/&#8221;/g, '"'); // Unicode для кавычек
-}
-
-function testFunction() {
-    console.log("testFunction called");
-    return "Hello from Madara JavaScript!";
-}
-
 function parseMangaList(html) {
     console.log("parseMangaList called with HTML length:", html.length);
     
+    if (!html) {
+        console.log("No HTML provided");
+        return JSON.stringify({ manga: [], hasMore: false });
+    }
+    
+    // Очищаем HTML от проблемных символов
+    const cleanHTML = cleanHtml(html);
+    console.log("Looking for manga patterns...");
+    
+    const manga = [];
+    
     try {
-        // Очищаем HTML от проблемных символов
-        html = cleanHtml(html);
+        // Паттерн 1: Поиск ссылок на мангу в формате /series/name
+        const seriesPattern = /href="\/series\/([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+        let match;
         
-        const result = [];
-        
-        // Отладочная информация - ищем различные паттерны
-        console.log("Looking for manga patterns...");
-        
-        // Проверяем наличие различных контейнеров
-        const hasPageItemDetail = html.includes('page-item-detail');
-        const hasCTabsItemContent = html.includes('c-tabs-item__content');
-        const hasMangaItem = html.includes('manga-item');
-        
-        console.log("HTML contains:", {
-            pageItemDetail: hasPageItemDetail,
-            cTabsItemContent: hasCTabsItemContent,
-            mangaItem: hasMangaItem
-        });
-        
-        // Пробуем разные паттерны для поиска манги
-        let pattern;
-        let foundPattern = "";
-        
-        // Паттерн 1: page-item-detail
-        pattern = /<div class="page-item-detail[^\"]*">([\s\S]*?)<\/div>\s*<\/div>/g;
-        let match = pattern.exec(html);
-        if (match) {
-            foundPattern = "page-item-detail";
-            console.log("Found manga using page-item-detail pattern");
-        } else {
-            // Паттерн 2: c-tabs-item__content
-            pattern = /<div class="c-tabs-item__content"[^>]*>([\s\S]*?)<\/div>/g;
-            match = pattern.exec(html);
-            if (match) {
-                foundPattern = "c-tabs-item__content";
-                console.log("Found manga using c-tabs-item__content pattern");
-            } else {
-                // Паттерн 3: manga-item
-                pattern = /<div class="manga-item"[^>]*>([\s\S]*?)<\/div>/g;
-                match = pattern.exec(html);
-                if (match) {
-                    foundPattern = "manga-item";
-                    console.log("Found manga using manga-item pattern");
-                } else {
-                    // Паттерн 4: общий поиск ссылок на мангу
-                    pattern = /<a[^>]+href="[^"]*manga[^"]*"[^>]*>[\s\S]*?<\/a>/g;
-                    match = pattern.exec(html);
-                    if (match) {
-                        foundPattern = "general manga links";
-                        console.log("Found manga using general manga links pattern");
-                    }
-                }
-            }
-        }
-        
-        if (!foundPattern) {
-            console.log("No manga pattern found, trying to extract sample HTML...");
-            // Выводим часть HTML для анализа
-            const sampleHtml = html.substring(0, 2000);
-            console.log("Sample HTML:", sampleHtml);
-            return JSON.stringify({
-                manga: [],
-                hasMore: false
-            });
-        }
-        
-        // Сбрасываем регулярное выражение
-        pattern.lastIndex = 0;
-        
-        while ((match = pattern.exec(html)) !== null) {
-            let block = match[1];
-            console.log("Processing block:", block.substring(0, 200) + "...");
-
-            // Ссылка на мангу - пробуем разные паттерны
-            let urlMatch = block.match(/<a[^>]+href="([^"]*manga[^"]*)"/);
-            let url = urlMatch ? urlMatch[1] : "";
-
-            // Обложка - пробуем разные паттерны
-            let coverMatch = block.match(/data-src="([^"]+)"/) || 
-                           block.match(/src="([^"]+)"/) ||
-                           block.match(/<img[^>]+src="([^"]+)"/);
-            let cover = coverMatch ? coverMatch[1] : "";
-
-            // Название - пробуем разные паттерны
-            let titleMatch = block.match(/<h3[^>]*>[\s\S]*?<a[^>]*>([^<]+)<\/a>/) ||
-                           block.match(/<a[^>]*>([^<]+)<\/a>/) ||
-                           block.match(/<h[1-6][^>]*>([^<]+)<\/h[1-6]>/);
-            let title = titleMatch ? titleMatch[1].trim() : "";
-
-            console.log("Extracted:", { url, cover, title });
-
-            if (url && title) {
-                // Делаем абсолютные ссылки
-                if (!url.startsWith("http")) url = "https://madarascans.com" + url;
-                if (cover && !cover.startsWith("http")) cover = "https://madarascans.com" + cover;
-                
-                // Извлекаем ID из URL
-                const idMatch = url.match(/manga\/([^\/\?]+)/) || url.match(/series\/([^\/\?]+)/);
-                const id = idMatch ? idMatch[1] : title.toLowerCase().replace(/\s+/g, '-');
-                
-                result.push({
+        while ((match = seriesPattern.exec(cleanHTML)) !== null) {
+            const id = match[1];
+            const title = match[2].trim();
+            
+            // Проверяем, что это действительно манга, а не навигация
+            if (title && title.length > 2 && !title.includes('Page') && !title.includes('Next') && !title.includes('Previous')) {
+                const mangaItem = {
                     id: id,
                     title: title,
-                    url: url,
-                    coverURL: cover,
+                    url: `https://madarascans.com/series/${id}`,
+                    coverURL: null,
                     author: null,
                     status: null,
                     description: null,
                     tags: []
-                });
+                };
+                
+                // Ищем обложку для этой манги
+                const coverPattern = new RegExp(`href="\/series\/${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>\\s*<img[^>]*src="([^"]+)"`, 'i');
+                const coverMatch = cleanHTML.match(coverPattern);
+                if (coverMatch) {
+                    mangaItem.coverURL = coverMatch[1];
+                }
+                
+                // Проверяем, что манга еще не добавлена
+                if (!manga.find(m => m.id === id)) {
+                    manga.push(mangaItem);
+                    console.log("Found manga:", title);
+                }
             }
         }
-
-        // Проверка наличия следующей страницы
-        let hasMore = /<a[^>]*class="[^"]*next[^"]*"[^>]*>Next<\/a>/.test(html) ||
-                     /<a[^>]*class="[^"]*page-numbers[^"]*"[^>]*>Next<\/a>/.test(html);
-
-        console.log("Found", result.length, "manga");
         
-        const jsonResult = JSON.stringify({
-            manga: result,
-            hasMore: hasMore
-        });
-        
-        console.log("Returning JSON:", jsonResult);
-        
-        return jsonResult;
-    } catch (error) {
-        console.log("Error in parseMangaList:", error);
-        return JSON.stringify({
-            manga: [],
-            hasMore: false
-        });
-    }
-}
-
-function parseMangaDetails(html, mangaId) {
-    console.log("parseMangaDetails called");
-    
-    try {
-        // Очищаем HTML от проблемных символов
-        html = cleanHtml(html);
-        
-        // Простой парсинг деталей манги для Madara
-        const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/);
-        const title = titleMatch ? titleMatch[1].trim() : "";
-        
-        const authorMatch = html.match(/<span[^>]*>Author[^<]*<\/span>[^<]*<span[^>]*>([^<]+)<\/span>/);
-        const author = authorMatch ? authorMatch[1].trim() : "";
-        
-        const descMatch = html.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/);
-        const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, '').trim() : "";
-        
-        const statusMatch = html.match(/<span[^>]*>Status[^<]*<\/span>[^<]*<span[^>]*>([^<]+)<\/span>/);
-        const status = statusMatch ? statusMatch[1].trim() : "Unknown";
-        
-        // Теги/жанры
-        const tags = [];
-        const genrePattern = /<a[^>]*class="[^"]*genre[^"]*"[^>]*>([^<]+)<\/a>/g;
-        let genreMatch;
-        while ((genreMatch = genrePattern.exec(html)) !== null) {
-            tags.push(genreMatch[1].trim());
-        }
-        
-        return JSON.stringify({
-            id: mangaId,
-            title: title,
-            url: `https://madarascans.com/manga/${mangaId}`,
-            coverURL: "",
-            author: author,
-            artist: "",
-            description: description,
-            tags: tags,
-            status: status
-        });
-    } catch (error) {
-        console.log("Error in parseMangaDetails:", error);
-        return JSON.stringify(null);
-    }
-}
-
-function parseChapterList(html, mangaId) {
-    console.log("parseChapterList called");
-    
-    try {
-        // Очищаем HTML от проблемных символов
-        html = cleanHtml(html);
-        
-        const chapters = [];
-        
-        // Парсинг глав для Madara
-        const chapterPattern = /<li[^>]*class="[^"]*wp-manga-chapter[^"]*"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
-        let match;
-        
-        while ((match = chapterPattern.exec(html)) !== null) {
-            const url = match[1];
+        // Паттерн 2: Поиск в карточках манги
+        const cardPattern = /<div[^>]*class="[^"]*manga[^"]*"[^>]*>.*?<a[^>]*href="\/series\/([^"]+)"[^>]*>([^<]+)<\/a>/gis;
+        while ((match = cardPattern.exec(cleanHTML)) !== null) {
+            const id = match[1];
             const title = match[2].trim();
             
-            // Извлекаем ID главы из URL
-            const chapterIdMatch = url.match(/chapter\/([^\/\?]+)/);
-            const chapterId = chapterIdMatch ? chapterIdMatch[1] : title.lowercase().replace(/\s+/g, '-');
+            if (title && title.length > 2 && !manga.find(m => m.id === id)) {
+                const mangaItem = {
+                    id: id,
+                    title: title,
+                    url: `https://madarascans.com/series/${id}`,
+                    coverURL: null,
+                    author: null,
+                    status: null,
+                    description: null,
+                    tags: []
+                };
+                
+                // Ищем обложку в той же карточке
+                const coverPattern = /<img[^>]*src="([^"]+)"[^>]*>/i;
+                const coverMatch = match[0].match(coverPattern);
+                if (coverMatch) {
+                    mangaItem.coverURL = coverMatch[1];
+                }
+                
+                manga.push(mangaItem);
+                console.log("Found manga in card:", title);
+            }
+        }
+        
+        // Паттерн 3: Поиск в списках
+        const listPattern = /<li[^>]*>.*?<a[^>]*href="\/series\/([^"]+)"[^>]*>([^<]+)<\/a>/gis;
+        while ((match = listPattern.exec(cleanHTML)) !== null) {
+            const id = match[1];
+            const title = match[2].trim();
             
-            // Извлекаем номер главы
-            const numberMatch = title.match(/Chapter\s*([0-9.]+)/i);
-            const chapterNumber = numberMatch ? parseFloat(numberMatch[1]) : -1;
-            
-            chapters.push({
-                id: chapterId,
-                title: title,
-                url: url.startsWith("http") ? url : `https://madarascans.com${url}`,
-                number: chapterNumber,
-                volume: null,
-                scanlator: null,
-                uploadDate: null
+            if (title && title.length > 2 && !manga.find(m => m.id === id)) {
+                const mangaItem = {
+                    id: id,
+                    title: title,
+                    url: `https://madarascans.com/series/${id}`,
+                    coverURL: null,
+                    author: null,
+                    status: null,
+                    description: null,
+                    tags: []
+                };
+                
+                manga.push(mangaItem);
+                console.log("Found manga in list:", title);
+            }
+        }
+        
+        console.log(`Found ${manga.length} manga total`);
+        
+    } catch (error) {
+        console.log("Error in parseMangaList:", error.message);
+    }
+    
+    const result = {
+        manga: manga,
+        hasMore: false
+    };
+    
+    console.log("Returning JSON:", JSON.stringify(result));
+    return JSON.stringify(result);
+}
+
+function parseMangaDetails(html, url) {
+    console.log("parseMangaDetails called for URL:", url);
+    
+    if (!html) {
+        return JSON.stringify({});
+    }
+    
+    const cleanHTML = cleanHtml(html);
+    
+    try {
+        // Извлекаем ID из URL
+        const idMatch = url.match(/series\/([^\/\?]+)/);
+        const id = idMatch ? idMatch[1] : "";
+        
+        // Ищем название
+        let title = "";
+        const titleMatch = cleanHTML.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
+                          cleanHTML.match(/<title[^>]*>([^<]+)<\/title>/i);
+        if (titleMatch) {
+            title = titleMatch[1].trim();
+        }
+        
+        // Ищем описание
+        let description = "";
+        const descMatch = cleanHTML.match(/<div[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+                         cleanHTML.match(/<p[^>]*class="[^"]*description[^"]*"[^>]*>([\s\S]*?)<\/p>/i);
+        if (descMatch) {
+            description = descMatch[1].replace(/<[^>]*>/g, '').trim();
+        }
+        
+        // Ищем автора
+        let author = "";
+        const authorMatch = cleanHTML.match(/Author[^:]*:\s*<[^>]*>([^<]+)<\/[^>]*>/i) ||
+                           cleanHTML.match(/Author[^:]*:\s*([^<\n]+)/i);
+        if (authorMatch) {
+            author = authorMatch[1].trim();
+        }
+        
+        // Ищем статус
+        let status = "";
+        const statusMatch = cleanHTML.match(/Status[^:]*:\s*<[^>]*>([^<]+)<\/[^>]*>/i) ||
+                           cleanHTML.match(/Status[^:]*:\s*([^<\n]+)/i);
+        if (statusMatch) {
+            status = statusMatch[1].trim();
+        }
+        
+        // Ищем обложку
+        let coverURL = "";
+        const coverMatch = cleanHTML.match(/<img[^>]*class="[^"]*cover[^"]*"[^>]*src="([^"]+)"/i) ||
+                          cleanHTML.match(/<img[^>]*src="([^"]+)"[^>]*class="[^"]*cover[^"]*"/i);
+        if (coverMatch) {
+            coverURL = coverMatch[1];
+        }
+        
+        // Ищем теги
+        const tags = [];
+        const tagMatches = cleanHTML.match(/<a[^>]*class="[^"]*tag[^"]*"[^>]*>([^<]+)<\/a>/gi);
+        if (tagMatches) {
+            tagMatches.forEach(tagMatch => {
+                const tagText = tagMatch.replace(/<[^>]*>/g, '').trim();
+                if (tagText && !tags.includes(tagText)) {
+                    tags.push(tagText);
+                }
             });
         }
         
-        console.log("Found", chapters.length, "chapters");
+        const result = {
+            id: id,
+            title: title,
+            url: url,
+            coverURL: coverURL,
+            author: author,
+            status: status,
+            description: description,
+            tags: tags
+        };
         
-        return JSON.stringify(chapters);
+        console.log("Manga details:", result);
+        return JSON.stringify(result);
+        
     } catch (error) {
-        console.log("Error in parseChapterList:", error);
-        return JSON.stringify([]);
+        console.log("Error in parseMangaDetails:", error.message);
+        return JSON.stringify({});
     }
 }
 
-function parseChapterPages(html) {
-    console.log("parseChapterPages called");
+function parseChapterList(html, url) {
+    console.log("parseChapterList called for URL:", url);
+    
+    if (!html) {
+        return JSON.stringify({ chapters: [] });
+    }
+    
+    const cleanHTML = cleanHtml(html);
+    const chapters = [];
     
     try {
-        // Очищаем HTML от проблемных символов
-        html = cleanHtml(html);
+        // Извлекаем ID манги из URL
+        const mangaIdMatch = url.match(/series\/([^\/\?]+)/);
+        const mangaId = mangaIdMatch ? mangaIdMatch[1] : "";
         
-        const pages = [];
-        
-        // Парсинг страниц для Madara
-        const pagePattern = /<img[^>]+class="[^"]*wp-manga-chapter-img[^"]*"[^>]+src="([^"]+)"/g;
+        // Ищем главы
+        const chapterPattern = /<a[^>]*href="\/chapter\/([^"]+)"[^>]*>([^<]+)<\/a>/gi;
         let match;
         
-        while ((match = pagePattern.exec(html)) !== null) {
-            const pageUrl = match[1];
-            if (pageUrl && !pageUrl.includes('data:image')) {
-                pages.push(pageUrl);
+        while ((match = chapterPattern.exec(cleanHTML)) !== null) {
+            const chapterId = match[1];
+            const title = match[2].trim();
+            
+            if (title && title.length > 0) {
+                const chapter = {
+                    id: chapterId,
+                    title: title,
+                    url: `https://madarascans.com/chapter/${chapterId}`,
+                    chapterNumber: null,
+                    volumeNumber: null,
+                    language: "en",
+                    scanlator: null,
+                    dateUploaded: null
+                };
+                
+                // Извлекаем номер главы из названия
+                const chapterNumMatch = title.match(/Chapter\s+(\d+(?:\.\d+)?)/i);
+                if (chapterNumMatch) {
+                    chapter.chapterNumber = parseFloat(chapterNumMatch[1]);
+                }
+                
+                chapters.push(chapter);
+                console.log("Found chapter:", title);
             }
         }
         
-        console.log("Found", pages.length, "pages");
+        // Сортируем главы по номеру
+        chapters.sort((a, b) => {
+            if (a.chapterNumber && b.chapterNumber) {
+                return b.chapterNumber - a.chapterNumber;
+            }
+            return 0;
+        });
         
-        return JSON.stringify(pages);
+        console.log(`Found ${chapters.length} chapters`);
+        
     } catch (error) {
-        console.log("Error in parseChapterPages:", error);
-        return JSON.stringify([]);
+        console.log("Error in parseChapterList:", error.message);
     }
+    
+    const result = { chapters: chapters };
+    console.log("Returning chapters:", JSON.stringify(result));
+    return JSON.stringify(result);
+}
+
+function parseChapterPages(html, url) {
+    console.log("parseChapterPages called for URL:", url);
+    
+    if (!html) {
+        return JSON.stringify({ pages: [] });
+    }
+    
+    const cleanHTML = cleanHtml(html);
+    const pages = [];
+    
+    try {
+        // Ищем изображения страниц
+        const pagePattern = /<img[^>]*class="[^"]*wp-manga-chapter-img[^"]*"[^>]*src="([^"]+)"/gi;
+        let match;
+        
+        while ((match = pagePattern.exec(cleanHTML)) !== null) {
+            const imageUrl = match[1];
+            
+            if (imageUrl && imageUrl.length > 0) {
+                const page = {
+                    index: pages.length,
+                    imageURL: imageUrl,
+                    baseURL: null
+                };
+                
+                pages.push(page);
+                console.log("Found page:", imageUrl);
+            }
+        }
+        
+        // Альтернативный паттерн для изображений
+        if (pages.length === 0) {
+            const altPagePattern = /<img[^>]*src="([^"]+)"[^>]*class="[^"]*chapter[^"]*"/gi;
+            while ((match = altPagePattern.exec(cleanHTML)) !== null) {
+                const imageUrl = match[1];
+                
+                if (imageUrl && imageUrl.length > 0 && !imageUrl.includes('logo') && !imageUrl.includes('banner')) {
+                    const page = {
+                        index: pages.length,
+                        imageURL: imageUrl,
+                        baseURL: null
+                    };
+                    
+                    pages.push(page);
+                    console.log("Found page (alt):", imageUrl);
+                }
+            }
+        }
+        
+        console.log(`Found ${pages.length} pages`);
+        
+    } catch (error) {
+        console.log("Error in parseChapterPages:", error.message);
+    }
+    
+    const result = { pages: pages };
+    console.log("Returning pages:", JSON.stringify(result));
+    return JSON.stringify(result);
 }
 
 console.log("All Madara functions defined");
