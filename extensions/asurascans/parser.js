@@ -1,6 +1,24 @@
 // Simple test parser for AsuraScans
 console.log("Parser loaded successfully");
 
+// Функция для очистки HTML от проблемных символов
+function cleanHtml(html) {
+    if (!html) return "";
+    
+    // Заменяем проблемные символы на правильные
+    return html
+        .replace(/&#39;/g, "'")  // HTML entity для апострофа
+        .replace(/&apos;/g, "'") // HTML entity для апострофа
+        .replace(/&quot;/g, '"') // HTML entity для кавычек
+        .replace(/&amp;/g, '&')  // HTML entity для амперсанда
+        .replace(/&lt;/g, '<')   // HTML entity для <
+        .replace(/&gt;/g, '>')   // HTML entity для >
+        .replace(/&#8217;/g, "'") // Unicode для апострофа
+        .replace(/&#8216;/g, "'") // Unicode для апострофа
+        .replace(/&#8220;/g, '"') // Unicode для кавычек
+        .replace(/&#8221;/g, '"'); // Unicode для кавычек
+}
+
 function testFunction() {
     console.log("testFunction called");
     return "Hello from JavaScript!";
@@ -10,6 +28,9 @@ function parseMangaList(html) {
     console.log("parseMangaList called with HTML length:", html.length);
     
     try {
+        // Очищаем HTML от проблемных символов
+        html = cleanHtml(html);
+        
         const mangas = [];
         
         // Простой парсинг для тестирования
@@ -55,27 +76,54 @@ function parseMangaList(html) {
 
 function parseMangaDetails(html, mangaId) {
     console.log("parseMangaDetails called");
-    return JSON.stringify({
-        id: mangaId,
-        title: "Test Manga",
-        url: `https://asuracomic.net/series/${mangaId}`,
-        coverURL: "",
-        author: "Test Author",
-        artist: "",
-        description: "Test Description",
-        tags: [],
-        status: "Unknown"
-    });
+    
+    try {
+        // Очищаем HTML от проблемных символов
+        html = cleanHtml(html);
+        
+        return JSON.stringify({
+            id: mangaId,
+            title: "Test Manga",
+            url: `https://asuracomic.net/series/${mangaId}`,
+            coverURL: "",
+            author: "Test Author",
+            artist: "",
+            description: "Test Description",
+            tags: [],
+            status: "Unknown"
+        });
+    } catch (error) {
+        console.log("Error in parseMangaDetails:", error);
+        return JSON.stringify(null);
+    }
 }
 
 function parseChapterList(html, mangaId) {
     console.log("parseChapterList called");
-    return JSON.stringify([]);
+    
+    try {
+        // Очищаем HTML от проблемных символов
+        html = cleanHtml(html);
+        
+        return JSON.stringify([]);
+    } catch (error) {
+        console.log("Error in parseChapterList:", error);
+        return JSON.stringify([]);
+    }
 }
 
 function parseChapterPages(html) {
     console.log("parseChapterPages called");
-    return JSON.stringify([]);
+    
+    try {
+        // Очищаем HTML от проблемных символов
+        html = cleanHtml(html);
+        
+        return JSON.stringify([]);
+    } catch (error) {
+        console.log("Error in parseChapterPages:", error);
+        return JSON.stringify([]);
+    }
 }
 
 console.log("All functions defined");
