@@ -1,71 +1,42 @@
-
 function getMangaList(html, options) {Add commentMore actions
     // options: { page, filters }
     let result = [];
-    let debug = [];
-
-    // 1. Каталог: <div class="c-tabs-item__content">
-    const madaraPattern = /<div class="c-tabs-item__content"[^>]*>([\s\S]*?)<\/div>/g;
+    // Пример парсинга главной страницы Madara (список манги)
+    // Каждый элемент манги находится в <div class="page-item-detail">
+    const pattern = /<div class="page-item-detail[^\"]*">([\s\S]*?)<\/div>\s*<\/div>/g;
     let match;
-    while ((match = madaraPattern.exec(html)) !== null) {
+    while ((match = pattern.exec(html)) !== null) {
         let block = match[1];
-let url = (block.match(/<a[^>]+href=\"([^\"]+)\"/) || [])[1] || "";Add commentMore actions
-        let title = (block.match(/<a[^>]+title=\"([^\"]+)\"/) || [])[1] || "";
-        let cover = (block.match(/<img[^>]+src=\"([^\"]+)\"/) || [])[1] || "";
-        if (url && title && cover) {
+
+        // Ссылка на мангу
+        let urlMatch = block.match(/<a href=\"([^\"]+)\"/);
+        let url = urlMatch ? urlMatch[1] : "";
+
+        // Обложка
+        let coverMatch = block.match(/data-src=\"([^\"]+)\"/) || block.match(/src=\"([^\"]+)\"/);
+        let cover = coverMatch ? coverMatch[1] : "";
+
+        // Название
+        let titleMatch = block.match(/<h3 class=\"h5\">[\s\S]*?<a[^>]*>([^<]+)<\/a>/);
+        let title = titleMatch ? titleMatch[1].trim() : "";
+
+        if (url && cover && title) {
+            // Делаем абсолютные ссылки
             if (!url.startsWith("http")) url = "https://madarascans.com" + url;
             if (!cover.startsWith("http")) cover = "https://madarascans.com" + cover;
-            result.push({ title, url, cover });
+            result.push({
+                title: title,
+                url: url,
+                cover: cover
+            });
         }
-    }
-
-    // 2. Главная: .bsx (если каталог пуст)
-    // 2. Альтернатива: <div class="page-item-detail">
-    if (result.length === 0) {
-const pageItemPattern = /<div class=\"page-item-detail[^\"]*\">([\s\S]*?)<\/div>/g;Add commentMore actions
-        while ((match = pageItemPattern.exec(html)) !== null) {
-            let block = match[1];
-            let url = (block.match(/<a[^>]+href=\"([^\"]+)\"/) || [])[1] || "";
-            let title = (block.match(/<a[^>]+title=\"([^\"]+)\"/) || [])[1] || "";
-            let cover = (block.match(/<img[^>]+src=\"([^\"]+)\"/) || [])[1] || "";
-            if (url && title && cover) {
-                if (!url.startsWith("http")) url = "https://madarascans.com" + url;
-                if (!cover.startsWith("http")) cover = "https://madarascans.com" + cover;
-                result.push({ title, url, cover });
-            }
-        }
-    }
-
-    // 3. Главная: .bsx (универсальный вариант)
-    if (result.length === 0) {
-        const bsxPattern = /<div class=\"bsx[^"]*\">([\s\S]*?)<\/div>\s*<\/div>/g;
-        while ((match = bsxPattern.exec(html)) !== null) {
-            let block = match[1];
-// СсылкаAdd commentMore actions
-            let url = (block.match(/<a[^>]+href=\"([^\"]+)\"/) || [])[1] || "";
-            // Название: сначала ищем в .tt, если нет — в title
-            let ttMatch = block.match(/<div class=\"tt\">([\s\S]*?)<\/div>/);
-            let title = ttMatch ? ttMatch[1].replace(/<[^>]+>/g, '').trim() : "";
-            if (!title) {
-let titleAttr = (block.match(/<a[^>]+title=\"([^\"]+)\"/) || [])[1] || "";Add commentMore actions
-                title = titleAttr.trim();
-            }
-// ОбложкаAdd commentMore actions
-            let coverMatch = block.match(/<img[^>]+src=\"([^\"]+)\"/);
-            let cover = coverMatch ? coverMatch[1] : «";
- if (!url.startsWith("http")) url = "https://madarascans.com" + url;Add commentMore actions
-                if (!cover.startsWith("http")) cover = "https://madarascans.com" + cover;
-                result.push({ title, url, cover });
-            }
-        }
-    }
-
-    // Лог для отладки (можно удалить после теста)
-    if (typeof console !== 'undefined') {
-        console.log('[MADARA DEBUG] Найдено манги:', result.length);
-        if (result.length > 0) console.log('[MADARA DEBUG] Первая манга:', result[0]);
     }
 
     // Проверка наличия следующей страницы (по кнопке Next)
     let hasMore = /<a[^>]*class=\"next page-numbers\"[^>]*>Next<\/a>/.test(html);
+
     return {
+        manga: result,
+        has_more: hasMore
+    };
+} 
