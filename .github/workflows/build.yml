@@ -1,20 +1,18 @@
 name: Build all WASM extensions
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.45
+      - uses: actions/checkout@v2
+      - uses: mymindstorm/setup-emsdk@v11
+      
+      - name: Build AsuraScans
+        run: |
+          cd extensions/asurascans
+          chmod +x build.sh
+          ./build.sh
 
       - name: Build all WASM extensions
         run: |
