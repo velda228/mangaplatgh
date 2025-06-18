@@ -1,6 +1,43 @@
 // Simple test parser for AsuraScans
 console.log("Parser loaded successfully");
 
+// Функция для декодирования HTML-сущностей
+function decodeHtmlEntities(text) {
+    if (!text) return text;
+    
+    const entities = {
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&quot;': '"',
+        '&#39;': "'",
+        '&apos;': "'",
+        '&nbsp;': ' ',
+        '&hellip;': '…',
+        '&mdash;': '—',
+        '&ndash;': '–',
+        '&lsquo;': '\u2018',
+        '&rsquo;': '\u2019',
+        '&ldquo;': '\u201C',
+        '&rdquo;': '\u201D'
+    };
+    
+    return text.replace(/&[a-zA-Z0-9#]+;/g, function(match) {
+        return entities[match] || match;
+    });
+}
+
+// Функция для очистки текста от лишних символов
+function cleanText(text) {
+    if (!text) return text;
+    
+    return text
+        .replace(/\s+/g, ' ')  // Заменяем множественные пробелы на один
+        .replace(/^\s+|\s+$/g, '')  // Убираем пробелы в начале и конце
+        .replace(/[\u2018\u2019]/g, "'")  // Заменяем smart quotes на обычные
+        .replace(/[\u201C\u201D]/g, '"');  // Заменяем smart quotes на обычные
+}
+
 function testFunction() {
     console.log("testFunction called");
     return "Hello from JavaScript!";
@@ -19,7 +56,7 @@ function parseMangaList(html) {
         while ((match = pattern.exec(html)) !== null) {
             const id = match[1];
             const cover = match[2].startsWith("http") ? match[2] : `https://gg.asuracomic.net${match[2]}`;
-            const title = match[3].trim();
+            const title = cleanText(decodeHtmlEntities(match[3].trim()));
             
             mangas.push({
                 id: id,
@@ -57,12 +94,12 @@ function parseMangaDetails(html, mangaId) {
     console.log("parseMangaDetails called");
     return JSON.stringify({
         id: mangaId,
-        title: "Test Manga",
+        title: cleanText(decodeHtmlEntities("Test Manga")),
         url: `https://asuracomic.net/series/${mangaId}`,
         coverURL: "",
-        author: "Test Author",
+        author: cleanText(decodeHtmlEntities("Test Author")),
         artist: "",
-        description: "Test Description",
+        description: cleanText(decodeHtmlEntities("Test Description")),
         tags: [],
         status: "Unknown"
     });
