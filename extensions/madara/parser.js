@@ -94,34 +94,100 @@ function parseMangaList(html) {
         
         const result = [];
         
-        // Пример парсинга главной страницы Madara (список манги)
-        // Каждый элемент манги находится в <div class="page-item-detail">
-        const pattern = /<div class="page-item-detail[^\"]*">([\s\S]*?)<\/div>\s*<\/div>/g;
-        let match;
+        // Отладочная информация - ищем различные паттерны
+        console.log("Looking for manga patterns...");
+        
+        // Проверяем наличие различных контейнеров
+        const hasPageItemDetail = html.includes('page-item-detail');
+        const hasCTabsItemContent = html.includes('c-tabs-item__content');
+        const hasMangaItem = html.includes('manga-item');
+        
+        console.log("HTML contains:", {
+            pageItemDetail: hasPageItemDetail,
+            cTabsItemContent: hasCTabsItemContent,
+            mangaItem: hasMangaItem
+        });
+        
+        // Пробуем разные паттерны для поиска манги
+        let pattern;
+        let foundPattern = "";
+        
+        // Паттерн 1: page-item-detail
+        pattern = /<div class="page-item-detail[^\"]*">([\s\S]*?)<\/div>\s*<\/div>/g;
+        let match = pattern.exec(html);
+        if (match) {
+            foundPattern = "page-item-detail";
+            console.log("Found manga using page-item-detail pattern");
+        } else {
+            // Паттерн 2: c-tabs-item__content
+            pattern = /<div class="c-tabs-item__content"[^>]*>([\s\S]*?)<\/div>/g;
+            match = pattern.exec(html);
+            if (match) {
+                foundPattern = "c-tabs-item__content";
+                console.log("Found manga using c-tabs-item__content pattern");
+            } else {
+                // Паттерн 3: manga-item
+                pattern = /<div class="manga-item"[^>]*>([\s\S]*?)<\/div>/g;
+                match = pattern.exec(html);
+                if (match) {
+                    foundPattern = "manga-item";
+                    console.log("Found manga using manga-item pattern");
+                } else {
+                    // Паттерн 4: общий поиск ссылок на мангу
+                    pattern = /<a[^>]+href="[^"]*manga[^"]*"[^>]*>[\s\S]*?<\/a>/g;
+                    match = pattern.exec(html);
+                    if (match) {
+                        foundPattern = "general manga links";
+                        console.log("Found manga using general manga links pattern");
+                    }
+                }
+            }
+        }
+        
+        if (!foundPattern) {
+            console.log("No manga pattern found, trying to extract sample HTML...");
+            // Выводим часть HTML для анализа
+            const sampleHtml = html.substring(0, 2000);
+            console.log("Sample HTML:", sampleHtml);
+            return JSON.stringify({
+                manga: [],
+                hasMore: false
+            });
+        }
+        
+        // Сбрасываем регулярное выражение
+        pattern.lastIndex = 0;
         
         while ((match = pattern.exec(html)) !== null) {
             let block = match[1];
+            console.log("Processing block:", block.substring(0, 200) + "...");
 
-            // Ссылка на мангу
-            let urlMatch = block.match(/<a href=\"([^\"]+)\"/);
+            // Ссылка на мангу - пробуем разные паттерны
+            let urlMatch = block.match(/<a[^>]+href="([^"]*manga[^"]*)"/);
             let url = urlMatch ? urlMatch[1] : "";
 
-            // Обложка
-            let coverMatch = block.match(/data-src=\"([^\"]+)\"/) || block.match(/src=\"([^\"]+)\"/);
+            // Обложка - пробуем разные паттерны
+            let coverMatch = block.match(/data-src="([^"]+)"/) || 
+                           block.match(/src="([^"]+)"/) ||
+                           block.match(/<img[^>]+src="([^"]+)"/);
             let cover = coverMatch ? coverMatch[1] : "";
 
-            // Название
-            let titleMatch = block.match(/<h3 class=\"h5\">[\s\S]*?<a[^>]*>([^<]+)<\/a>/);
+            // Название - пробуем разные паттерны
+            let titleMatch = block.match(/<h3[^>]*>[\s\S]*?<a[^>]*>([^<]+)<\/a>/) ||
+                           block.match(/<a[^>]*>([^<]+)<\/a>/) ||
+                           block.match(/<h[1-6][^>]*>([^<]+)<\/h[1-6]>/);
             let title = titleMatch ? titleMatch[1].trim() : "";
 
-            if (url && cover && title) {
+            console.log("Extracted:", { url, cover, title });
+
+            if (url && title) {
                 // Делаем абсолютные ссылки
                 if (!url.startsWith("http")) url = "https://madarascans.com" + url;
-                if (!cover.startsWith("http")) cover = "https://madarascans.com" + cover;
+                if (cover && !cover.startsWith("http")) cover = "https://madarascans.com" + cover;
                 
                 // Извлекаем ID из URL
-                const idMatch = url.match(/manga\/([^\/\?]+)/);
-                const id = idMatch ? idMatch[1] : title.lowercase().replace(/\s+/g, '-');
+                const idMatch = url.match(/manga\/([^\/\?]+)/) || url.match(/series\/([^\/\?]+)/);
+                const id = idMatch ? idMatch[1] : title.toLowerCase().replace(/\s+/g, '-');
                 
                 result.push({
                     id: id,
@@ -136,8 +202,9 @@ function parseMangaList(html) {
             }
         }
 
-        // Проверка наличия следующей страницы (по кнопке Next)
-        let hasMore = /<a[^>]*class=\"next page-numbers\"[^>]*>Next<\/a>/.test(html);
+        // Проверка наличия следующей страницы
+        let hasMore = /<a[^>]*class="[^"]*next[^"]*"[^>]*>Next<\/a>/.test(html) ||
+                     /<a[^>]*class="[^"]*page-numbers[^"]*"[^>]*>Next<\/a>/.test(html);
 
         console.log("Found", result.length, "manga");
         
