@@ -39,6 +39,63 @@ typedef struct {
 static char* current_html = NULL;
 static char* current_url = NULL;
 
+// Прототипы вспомогательных функций
+static char* extract_text(GumboNode* node);
+static char* extract_attribute(GumboNode* node, const char* attr_name);
+static GumboNode* find_by_class(GumboNode* node, const char* tag, const char* classname);
+static void find_manga_items_asura(GumboNode* node, cJSON* manga_array);
+static void check_has_more(GumboNode* node, int* has_more);
+static char* find_author(GumboNode* node);
+static char* find_status(GumboNode* node);
+static void find_chapters_asura(GumboNode* node, cJSON* chapters);
+
+// Реализация вспомогательных функций
+static char* extract_text(GumboNode* node) {
+    if (!node) return NULL;
+    
+    if (node->type == GUMBO_NODE_TEXT) {
+        return strdup(node->v.text.text);
+    }
+    
+    if (node->type == GUMBO_NODE_ELEMENT) {
+        for (unsigned int i = 0; i < node->v.element.children.length; ++i) {
+            char* text = extract_text(node->v.element.children.data[i]);
+            if (text) return text;
+        }
+    }
+    
+    return NULL;
+}
+
+static char* extract_attribute(GumboNode* node, const char* attr_name) {
+    if (!node || node->type != GUMBO_NODE_ELEMENT) return NULL;
+    
+    GumboAttribute* attr = gumbo_get_attribute(&node->v.element.attributes, attr_name);
+    if (attr) {
+        return strdup(attr->value);
+    }
+    
+    return NULL;
+}
+
+static GumboNode* find_by_class(GumboNode* node, const char* tag, const char* classname) {
+    if (node->type != GUMBO_NODE_ELEMENT) return NULL;
+    
+    if (strcmp(gumbo_normalized_tagname(node->v.element.tag), tag) == 0) {
+        GumboAttribute* class_attr = gumbo_get_attribute(&node->v.element.attributes, "class");
+        if (class_attr && strstr(class_attr->value, classname)) {
+            return node;
+        }
+    }
+    
+    for (unsigned int i = 0; i < node->v.element.children.length; ++i) {
+        GumboNode* child = find_by_class(node->v.element.children.data[i], tag, classname);
+        if (child) return child;
+    }
+    
+    return NULL;
+}
+
 // Вспомогательные функции - выносим их в начало файла
 static void find_manga_items_asura(GumboNode* node, cJSON* manga_array) {
     if (node->type != GUMBO_NODE_ELEMENT) return;
@@ -294,36 +351,6 @@ static void find_chapters_asura(GumboNode* node, cJSON* chapters) {
     for (unsigned int i = 0; i < node->v.element.children.length; ++i) {
         find_chapters_asura(node->v.element.children.data[i], chapters);
     }
-}
-
-// Вспомогательная функция для извлечения текста из узла
-static char* extract_text(GumboNode* node) {
-    if (!node) return NULL;
-    
-    if (node->type == GUMBO_NODE_TEXT) {
-        return strdup(node->v.text.text);
-    }
-    
-    if (node->type == GUMBO_NODE_ELEMENT) {
-        for (unsigned int i = 0; i < node->v.element.children.length; ++i) {
-            char* text = extract_text(node->v.element.children.data[i]);
-            if (text) return text;
-        }
-    }
-    
-    return NULL;
-}
-
-// Вспомогательная функция для извлечения атрибута
-static char* extract_attribute(GumboNode* node, const char* attr_name) {
-    if (!node || node->type != GUMBO_NODE_ELEMENT) return NULL;
-    
-    GumboAttribute* attr = gumbo_get_attribute(&node->v.element.attributes, attr_name);
-    if (attr) {
-        return strdup(attr->value);
-    }
-    
-    return NULL;
 }
 
 // Основные экспортируемые функции
